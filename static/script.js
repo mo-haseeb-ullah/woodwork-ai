@@ -14,7 +14,7 @@ document.addEventListener('DOMContentLoaded', () => {
         
         if (!projectUrl) {
             statusMsg.classList.remove('hidden');
-            statusText.className = "status-text text-cloudred";
+            statusText.className = "status-text text-red-500 font-bold";
             statusText.textContent = "> Error: You must provide a project URL!";
             return;
         }
@@ -27,7 +27,8 @@ document.addEventListener('DOMContentLoaded', () => {
         btnText.classList.add('hidden');
         spinner.classList.remove('hidden');
         statusMsg.classList.remove('hidden');
-        statusText.className = "status-text text-neutral-400";
+        statusMsg.classList.add('show');
+        statusText.className = "status-text text-slate-500";
         statusText.textContent = "> Scraping blog post for text and images...";
 
         try {
@@ -58,7 +59,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         // Download the DOCX
                         window.location.href = `/download/${taskId}`;
                         
-                        statusText.className = "status-text text-green-500";
+                        statusText.className = "status-text text-emerald-600 font-bold";
                         statusText.textContent = "> Success! Premium Plan generated and downloaded as a Word Document (.docx).";
                         
                         // Reset UI
@@ -67,7 +68,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         spinner.classList.add('hidden');
                     } else if (statusData.status === 'error') {
                         clearInterval(pollInterval);
-                        statusText.className = "status-text text-cloudred";
+                        statusText.className = "status-text text-red-500 font-bold";
                         statusText.textContent = `> Error: ${statusData.error}`;
                         
                         // Reset UI
@@ -77,7 +78,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 } catch (pollError) {
                     clearInterval(pollInterval);
-                    statusText.className = "status-text text-cloudred";
+                    statusText.className = "status-text text-red-500 font-bold";
                     statusText.textContent = `> Polling Error: ${pollError.message}`;
                     
                     // Reset UI
@@ -88,7 +89,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }, 3000); // Poll every 3 seconds
 
         } catch (error) {
-            statusText.className = "status-text text-cloudred";
+            statusText.className = "status-text text-red-500 font-bold";
             statusText.textContent = `> System Error: ${error.message}`;
             
             // Reset UI
