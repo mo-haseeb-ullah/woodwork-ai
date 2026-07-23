@@ -1,0 +1,18 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+env/
+ENV/
+
+# Project specifics
+*.docx
+*.pdf
+scraped_images/
+temp/
+*.log
+*.json
+
+# Environment variables
+.env
