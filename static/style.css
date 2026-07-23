@@ -9,14 +9,14 @@ body {
     width: 8px;
 }
 ::-webkit-scrollbar-track {
-    background: #f1f5f9; 
+    background: #fcf6f3; 
 }
 ::-webkit-scrollbar-thumb {
-    background: #cbd5e1; 
+    background: #e5b396; 
     border-radius: 4px;
 }
 ::-webkit-scrollbar-thumb:hover {
-    background: #94a3b8; 
+    background: #d78d65; 
 }
 
 /* Button text transition */
@@ -29,4 +29,9 @@ body {
     display: block;
     opacity: 1;
     transform: translateY(0);
+}
+
+/* Smooth scrolling */
+html {
+    scroll-behavior: smooth;
 }
