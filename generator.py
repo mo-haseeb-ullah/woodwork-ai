@@ -31,6 +31,22 @@ def set_cell_background(cell, fill):
     tcBorders.set(qn('w:fill'), fill)
     tcPr.append(tcBorders)
 
+def add_page_border(section, color='C68A6B'):
+    """Add a page border to a section."""
+    sectPr = section._sectPr
+    pgBorders = OxmlElement('w:pgBorders')
+    pgBorders.set(qn('w:offsetFrom'), 'page')
+    
+    for border_name in ['top', 'left', 'bottom', 'right']:
+        border = OxmlElement(f'w:{border_name}')
+        border.set(qn('w:val'), 'single')
+        border.set(qn('w:sz'), '8')  # 1pt size
+        border.set(qn('w:space'), '24')
+        border.set(qn('w:color'), color)
+        pgBorders.append(border)
+    
+    sectPr.append(pgBorders)
+
 def generate_premium_pdf(plan_json_str, page_to_images=None, docx_images_dict=None, output_filename="Premium_Plan.docx"):
     """
     Generates an elegantly styled DOCX file aligned with ArtisanBlueprint branding.
@@ -40,8 +56,10 @@ def generate_premium_pdf(plan_json_str, page_to_images=None, docx_images_dict=No
 
     doc = Document()
     
-    # --- ADD BRANDED FOOTER ---
+    # --- ADD BRANDED FOOTER AND BORDER ---
     section = doc.sections[0]
+    add_page_border(section, color='C68A6B')
+    
     footer = section.footer
     footer_p = footer.paragraphs[0] if footer.paragraphs else footer.add_paragraph()
     footer_p.text = ""
