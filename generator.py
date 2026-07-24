@@ -291,6 +291,15 @@ def generate_premium_pdf(plan_json_str, page_to_images=None, docx_images_dict=No
             for inst in step.get("instructions", []):
                 add_bullet(inst)
 
+    # ==========================================
+    # 8. FINISHING INSTRUCTIONS
+    # ==========================================
+    if plan_data.get("finishing_instructions"):
+        doc.add_page_break()
+        add_heading("Finishing Instructions", level=1)
+        for inst in plan_data.get("finishing_instructions", []):
+            add_bullet(inst)
+
     doc.save(output_filename)
     print(f"Generated {output_filename}")
 

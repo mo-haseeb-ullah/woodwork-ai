@@ -66,6 +66,7 @@ def process_with_ai(scraped_text, api_key, scraped_images=None):
        - First, check if one of the attached scraped images perfectly matches this location. If so, provide its label (e.g., 'scraped_0') as the `xxx_image_source`.
        - If no scraped image matches, return null.
     7. If an image is completely missing from the scraped images, list it in `missing_images`.
+    8. Extract any Finishing Instructions, Preparation Instructions, or final sanding/painting/staining steps into a list of strings called `finishing_instructions`.
     
     You MUST return the output as a valid JSON object matching exactly this structure. ONLY include these exact keys:
     {
@@ -80,6 +81,7 @@ def process_with_ai(scraped_text, api_key, scraped_images=None):
       "cut_list": [{"quantity": "String", "dimensions": "String", "description": "String"}],
       "tools": [{"name": "String"}],
       "steps": [{"step_number": 1, "title": "String", "instructions": ["String"], "image_source": "String or null"}],
+      "finishing_instructions": ["String"],
       "missing_images": [{"location_id": "String", "description": "String"}]
     }
     """
