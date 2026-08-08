@@ -285,7 +285,12 @@ def generate_premium_pdf(plan_json_str, page_to_images=None, docx_images_dict=No
             step_title = step.get('title', '')
             add_heading(f"STEP {step_num}: {step_title}", level=1)
             
-            embed_image_if_exists(step.get("image_source"), target_width_inches=6.0)
+            # Handle multiple images if they exist
+            if "image_sources" in step and isinstance(step["image_sources"], list):
+                for img_src in step["image_sources"]:
+                    embed_image_if_exists(img_src, target_width_inches=6.0)
+            elif step.get("image_source"): # fallback for old single image
+                embed_image_if_exists(step.get("image_source"), target_width_inches=6.0)
             
             # Instructions Box
             desc = step.get("exact_description", "")
