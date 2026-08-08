@@ -61,7 +61,7 @@ def process_with_ai(scraped_text, api_key, scraped_images=None):
     2. Write a short `project_intro`.
     3. Extract the complete Shopping List (Materials), Cut list, and Tools list. If there is no explicit 'Tools' heading, carefully read the text to find which tools are mentioned. Do NOT guess or hallucinate tools that are not mentioned.
     4. First, identify the total number of steps in the source text. You must ensure your final JSON array contains exactly that many steps. Do not skip any. Extract ALL construction `steps` in order, exactly as they appear in the original text. DO NOT rewrite, summarize, or alter the explanation. You must copy the text for each step character-for-character into a single `exact_description` string.
-    5. Remove all branding, promotional text, website names.
+    5. CRITICAL: Remove all branding, promotional text, website names, copyright notices, author names (names of persons/creators), watermarks (e.g. Construct101), logo names, the word "Free" (or phrases like "Free Woodworking Plans"), and links from the extracted text. Give me only pure woodworking plans.
     6. For the `hero_image`, `dimension_image`, `tools_image`, and each step's `image`:
        - First, check if one of the attached scraped images perfectly matches this location. If so, provide its label (e.g., 'scraped_0') as the `xxx_image_source`.
        - If no scraped image matches, return null.
