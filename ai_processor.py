@@ -60,7 +60,7 @@ def process_with_ai(scraped_text, api_key, scraped_images=None):
     1. Extract the Project Name, Difficulty Level, and Finished Dimensions.
     2. Write a short `project_intro`.
     3. Extract the complete Shopping List (Materials), Cut list, and Tools list. If there is no explicit 'Tools' heading, carefully read the text to find which tools are mentioned. Do NOT guess or hallucinate tools that are not mentioned.
-    4. Extract the construction `steps` in order. Only extract actual numbered or clearly labeled project steps from the website. DO NOT include introductory text or general advice as a step.
+    4. First, identify the total number of steps in the source text. You must ensure your final JSON array contains exactly that many steps. Do not skip any. Extract ALL construction `steps` in order, exactly as they appear in the original text. DO NOT rewrite, summarize, or alter the explanation. You must copy the text for each step character-for-character into a single `exact_description` string.
     5. Remove all branding, promotional text, website names.
     6. For the `hero_image`, `dimension_image`, `tools_image`, and each step's `image`:
        - First, check if one of the attached scraped images perfectly matches this location. If so, provide its label (e.g., 'scraped_0') as the `xxx_image_source`.
@@ -80,7 +80,7 @@ def process_with_ai(scraped_text, api_key, scraped_images=None):
       "materials": [{"quantity": "String", "description": "String"}],
       "cut_list": [{"quantity": "String", "dimensions": "String", "description": "String"}],
       "tools": [{"name": "String"}],
-      "steps": [{"step_number": 1, "title": "String", "instructions": ["String"], "image_source": "String or null"}],
+      "steps": [{"step_number": 1, "title": "String", "exact_description": "String", "image_source": "String or null"}],
       "finishing_instructions": ["String"],
       "missing_images": [{"location_id": "String", "description": "String"}]
     }
@@ -134,7 +134,7 @@ def process_with_ai(scraped_text, api_key, scraped_images=None):
     
     Double-check this JSON against the original SCRAPED TEXT provided earlier.
     1. Did you miss any materials or tools mentioned in the text? If so, add them.
-    2. Are there any repeated steps or steps that include non-instructional text (like prep work)? If so, fix them.
+    2. Did you skip or summarize any steps from the original text? If so, restore them in full. The user wants ALL steps exactly as they appear in the original text, copied word-for-word into `exact_description`.
     3. Ensure the output strictly follows the schema.
     
     Return the final, perfectly corrected JSON object.

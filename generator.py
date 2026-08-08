@@ -288,8 +288,9 @@ def generate_premium_pdf(plan_json_str, page_to_images=None, docx_images_dict=No
             embed_image_if_exists(step.get("image_source"), target_width_inches=6.0)
             
             # Instructions Box
-            for inst in step.get("instructions", []):
-                add_bullet(inst)
+            desc = step.get("exact_description", "")
+            if desc:
+                doc.add_paragraph(desc)
 
     # ==========================================
     # 8. FINISHING INSTRUCTIONS
