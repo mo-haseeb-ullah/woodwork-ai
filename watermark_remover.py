@@ -1,78 +1,33 @@
 import os
+from PIL import Image, ImageDraw
 
-try:
-    import cv2
-    import numpy as np
-    import easyocr
-    try:
-        reader = easyocr.Reader(['en'], gpu=False)
-    except Exception as e:
-        print(f"Warning: Failed to initialize EasyOCR. {e}")
-        reader = None
-except ImportError:
-    cv2 = None
-    numpy = None
-    easyocr = None
-    reader = None
-
-
-def remove_watermarks(image_path):
+def remove_watermarks(image_path, crop_header_footer=True):
     """
-    Scans the image for watermarks like 'Construct101' and inpaints them.
-    Returns the path to the cleaned image (overwrites the original).
+    Removes headers, footers, watermarks, page numbers, and website links 
+    from extracted PDF images by whitewashing top and bottom header/footer regions 
+    and cleaning branding.
     """
-    if reader is None:
+    if not os.path.exists(image_path):
         return image_path
         
     try:
-        # Read the image
-        img = cv2.imread(image_path)
-        if img is None:
-            return image_path
+        with Image.open(image_path) as img:
+            img = img.convert("RGB")
+            w, h = img.size
             
-        # Detect text
-        results = reader.readtext(img)
-        
-        # Create a blank mask for inpainting
-        mask = np.zeros(img.shape[:2], dtype=np.uint8)
-        
-        watermark_found = False
-        
-        # Keywords to look for in the text
-        keywords = ['construct', '101', 'www.', '.com', 'copyright', '©']
-        
-        for (bbox, text, prob) in results:
-            text_lower = text.lower()
+            draw = ImageDraw.Draw(img)
             
-            # Check if this text block is a watermark
-            is_watermark = any(kw in text_lower for kw in keywords)
-            
-            if is_watermark and prob > 0.3:
-                watermark_found = True
+            if crop_header_footer:
+                # Whitewash Top Header (top 7.5% containing 'Visit www.Construct101.com' & Page numbers)
+                draw.rectangle([0, 0, w, int(h * 0.075)], fill=(255, 255, 255))
                 
-                # Bounding box points from EasyOCR
-                # bbox is like: [[x1, y1], [x2, y2], [x3, y3], [x4, y4]]
-                pts = np.array(bbox, np.int32)
-                pts = pts.reshape((-1, 1, 2))
+                # Whitewash Bottom Footer (bottom 7.5% containing copyright & website links)
+                draw.rectangle([0, int(h * 0.925), w, h], fill=(255, 255, 255))
                 
-                # Draw a filled polygon on the mask for the bounding box
-                cv2.fillPoly(mask, [pts], 255)
-        
-        if watermark_found:
-            # Dilate the mask slightly to ensure edges of the text are covered
-            kernel = np.ones((5,5), np.uint8)
-            mask = cv2.dilate(mask, kernel, iterations=1)
-            
-            # Inpaint the original image using the mask
-            # INPAINT_TELEA is generally good for small texts and logos
-            cleaned_img = cv2.inpaint(img, mask, 3, cv2.INPAINT_TELEA)
-            
-            # Save the cleaned image back
-            cv2.imwrite(image_path, cleaned_img)
-            print(f"Watermark successfully removed from {image_path}")
+            img.save(image_path, "PNG")
+            print(f"Header/Footer and branding successfully removed from {os.path.basename(image_path)}")
             
         return image_path
-        
     except Exception as e:
-        print(f"Error during watermark removal for {image_path}: {e}")
+        print(f"Error removing watermarks from {image_path}: {e}")
         return image_path
