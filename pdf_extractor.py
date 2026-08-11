@@ -28,14 +28,17 @@ def clean_extracted_text(text):
 
 def extract_from_pdf(pdf_filepath, output_img_dir):
     """
-    Extracts text page-by-page and crops ONLY the pure diagram picture graphics from a PDF file.
-    Excludes all text paragraphs, titles, headers, footers, and links from the extracted picture.
+    Extracts text page-by-page and extracts the ORIGINAL raw embedded picture files from a PDF.
+    Does NOT crop images or render page screenshots.
     """
     os.makedirs(output_img_dir, exist_ok=True)
     
     doc = pymupdf.open(pdf_filepath)
     full_text_parts = []
     extracted_images = []
+    
+    img_counter = 0
+    seen_xrefs = set()
     
     for page_idx, page in enumerate(doc):
         page_num = page_idx + 1
@@ -48,52 +51,39 @@ def extract_from_pdf(pdf_filepath, output_img_dir):
             full_text_parts.append(f"--- PAGE {page_num} ---")
             full_text_parts.append(cleaned_text.strip())
             
-        # 2. Crop ONLY the pure diagram image graphic (excluding page text, titles, headers, footers)
-        img_filename = f"scraped_{page_idx}.png"
-        img_path = os.path.join(output_img_dir, img_filename)
-        
-        info = page.get_image_info(xrefs=True)
-        # Filter for main step diagram image bboxes (width > 60, height > 60, y0 > 50)
-        diagram_info = [
-            item for item in info 
-            if (item['bbox'][3] - item['bbox'][1]) > 60 
-            and (item['bbox'][2] - item['bbox'][0]) > 60 
-            and item['bbox'][1] > 50
-        ]
-        
-        if diagram_info:
-            bbox = pymupdf.Rect()
-            for item in diagram_info:
-                bbox.include_rect(item['bbox'])
-            # Add 4px padding safely
-            clip_rect = pymupdf.Rect(
-                max(0, bbox.x0 - 4), 
-                max(0, bbox.y0 - 4), 
-                min(page.rect.width, bbox.x1 + 4), 
-                min(page.rect.height, bbox.y1 + 4)
-            )
-            pix = page.get_pixmap(dpi=150, clip=clip_rect)
-        else:
-            # Fallback for text-only pages: crop central area excluding top header & bottom footer
-            blocks = page.get_text('blocks')
-            top_text_ends = [b[3] for b in blocks if 60 <= b[1] <= 350 and not b[4].strip().startswith('---')]
-            top_y = max(top_text_ends) if top_text_ends else 70
-            footer_starts = [b[1] for b in blocks if b[1] >= 650]
-            bot_y = min(footer_starts) if footer_starts else (page.rect.height - 40)
+        # 2. Extract original raw embedded pictures directly from page
+        for img_info in page.get_images():
+            xref = img_info[0]
+            if xref in seen_xrefs:
+                continue
+            seen_xrefs.add(xref)
             
-            clip_rect = pymupdf.Rect(10, min(top_y + 5, page.rect.height - 100), page.rect.width - 10, max(bot_y - 5, top_y + 50))
-            pix = page.get_pixmap(dpi=150, clip=clip_rect)
-            
-        pix.save(img_path)
-        
-        # 3. Apply top & bottom header/footer whitewashing for safety
-        try:
-            remove_watermarks(img_path)
-        except Exception as e:
-            print(f"Watermark removal error for {img_path}: {e}")
-            
-        extracted_images.append(img_path)
-        
+            try:
+                base_image = doc.extract_image(xref)
+                w = base_image["width"]
+                h = base_image["height"]
+                image_bytes = base_image["image"]
+                image_ext = base_image["ext"]
+                
+                # Filter out tiny icons or pattern tiles (< 150x150)
+                if w >= 150 and h >= 150:
+                    img_filename = f"scraped_{img_counter}.{image_ext}"
+                    img_path = os.path.join(output_img_dir, img_filename)
+                    
+                    with open(img_path, "wb") as f:
+                        f.write(image_bytes)
+                        
+                    # Clean watermarks without any cropping
+                    try:
+                        remove_watermarks(img_path, crop_header_footer=False)
+                    except Exception as e:
+                        print(f"Watermark removal error: {e}")
+                        
+                    extracted_images.append(img_path)
+                    img_counter += 1
+            except Exception as e:
+                print(f"Error extracting image xref {xref}: {e}")
+                
     extracted_text = "\n\n".join(full_text_parts)
     return extracted_images, extracted_text
 
