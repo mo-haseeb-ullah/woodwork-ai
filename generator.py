@@ -47,11 +47,17 @@ def add_page_border(section, color='C68A6B'):
     
     sectPr.append(pgBorders)
 
+from json_repair import repair_and_parse_json
+
 def generate_premium_pdf(plan_json_str, page_to_images=None, docx_images_dict=None, output_filename="Premium_Plan.docx", custom_img_dir=None):
     """
     Generates an elegantly styled DOCX file aligned with ArtisanBlueprint branding.
     """
-    plan_data = json.loads(plan_json_str)
+    if isinstance(plan_json_str, str):
+        plan_data = repair_and_parse_json(plan_json_str)
+    else:
+        plan_data = plan_json_str
+        
     project_name = plan_data.get("project_name", "Woodworking Plan")
 
     doc = Document()

@@ -3,6 +3,7 @@ import time
 import json
 import requests
 import socket
+from json_repair import repair_and_parse_json
 
 # Force IPv4 to prevent Windows [WinError 10051] on IPv6 Google API
 old_getaddrinfo = socket.getaddrinfo
@@ -146,21 +147,33 @@ def process_with_ai(scraped_text, api_key=None, scraped_images=None):
     
     print("Pass 2: Validating extraction...")
     verify_prompt = f"""
-    Here is the JSON you extracted:
+    Here is the extracted JSON object:
     {first_json}
     
-    Double-check this JSON against the original SCRAPED TEXT provided earlier.
+    Double-check this JSON against the original EXTRACTED TEXT provided earlier.
     1. Did you miss any materials or tools mentioned in the text? If so, add them.
     2. Did you skip or summarize any steps from the original text? If so, restore them in full. The user wants ALL steps exactly as they appear in the original text, copied word-for-word into `exact_description`.
-    3. Ensure the output strictly follows the schema.
+    3. Ensure the output is valid JSON strictly following the schema.
     
-    Return the final, perfectly corrected JSON object.
+    Return the final, perfectly corrected JSON object only.
     """
     
-    parts.append({"text": verify_prompt})
-    payload["contents"] = [{"parts": parts}]
+    # Send text prompt for verification (without duplicating image payloads)
+    verify_payload = {
+        "contents": [{"parts": [{"text": verify_prompt}]}],
+        "generationConfig": {
+            "responseMimeType": "application/json",
+            "temperature": 0.1,
+            "maxOutputTokens": 8192
+        }
+    }
     
-    result2 = make_gemini_request(payload)
-    final_json = result2["candidates"][0]["content"]["parts"][0]["text"]
-    
-    return final_json
+    try:
+        result2 = make_gemini_request(verify_payload)
+        raw_final = result2["candidates"][0]["content"]["parts"][0]["text"]
+        parsed = repair_and_parse_json(raw_final)
+    except Exception as e:
+        print(f"Pass 2 verification failed ({e}), falling back to Pass 1 repaired output...")
+        parsed = repair_and_parse_json(first_json)
+        
+    return json.dumps(parsed, indent=2)
