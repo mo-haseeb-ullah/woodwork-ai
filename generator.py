@@ -228,8 +228,10 @@ def generate_premium_pdf(plan_json_str, page_to_images=None, docx_images_dict=No
         
         for material in materials:
             row_cells = table.add_row().cells
-            row_cells[0].text = material.get("quantity", "-")
-            row_cells[1].text = material.get("description", "")
+            q = material.get("quantity")
+            d = material.get("description")
+            row_cells[0].text = str(q) if q is not None else "-"
+            row_cells[1].text = str(d) if d is not None else ""
             
         doc.add_paragraph()
 
@@ -258,9 +260,12 @@ def generate_premium_pdf(plan_json_str, page_to_images=None, docx_images_dict=No
         
         for cut in cut_list:
             row_cells = table.add_row().cells
-            row_cells[0].text = str(cut.get("quantity", "-"))
-            row_cells[1].text = cut.get("dimensions", "")
-            row_cells[2].text = cut.get("description", "")
+            q = cut.get("quantity")
+            dim = cut.get("dimensions")
+            d = cut.get("description")
+            row_cells[0].text = str(q) if q is not None else "-"
+            row_cells[1].text = str(dim) if dim is not None else ""
+            row_cells[2].text = str(d) if d is not None else ""
             
         doc.add_paragraph()
 
@@ -275,7 +280,9 @@ def generate_premium_pdf(plan_json_str, page_to_images=None, docx_images_dict=No
              embed_image_if_exists(tools_page)
 
         for tool in plan_data.get("tools", []):
-            add_bullet(tool['name'])
+            tool_name = tool.get('name') if isinstance(tool, dict) else str(tool)
+            if tool_name:
+                add_bullet(str(tool_name))
         doc.add_paragraph()
     
     # ==========================================
@@ -298,9 +305,9 @@ def generate_premium_pdf(plan_json_str, page_to_images=None, docx_images_dict=No
                 embed_image_if_exists(step.get("image_source"), target_width_inches=6.0)
             
             # Instructions Box
-            desc = step.get("exact_description", "")
+            desc = step.get("exact_description")
             if desc:
-                doc.add_paragraph(desc)
+                doc.add_paragraph(str(desc))
 
     # ==========================================
     # 8. FINISHING INSTRUCTIONS
@@ -309,7 +316,8 @@ def generate_premium_pdf(plan_json_str, page_to_images=None, docx_images_dict=No
         doc.add_page_break()
         add_heading("Finishing Instructions", level=1)
         for inst in plan_data.get("finishing_instructions", []):
-            add_bullet(inst)
+            if inst:
+                add_bullet(str(inst))
 
     doc.save(output_filename)
     print(f"Generated {output_filename}")
