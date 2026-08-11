@@ -1,5 +1,6 @@
 import json
 import os
+import re
 from docx import Document
 from docx.shared import Inches, Pt, RGBColor
 from docx.enum.text import WD_ALIGN_PARAGRAPH
@@ -125,9 +126,28 @@ def generate_premium_pdf(plan_json_str, page_to_images=None, docx_images_dict=No
         doc.add_paragraph(text, style='List Bullet')
 
     def embed_image_if_exists(image_source, target_width_inches=6.0, center=True):
-        if not image_source or not isinstance(image_source, str) or not image_source.startswith("scraped_"):
+        if not image_source:
             return False
             
+        if not isinstance(image_source, str):
+            image_source = str(image_source)
+            
+        target_name = image_source.strip()
+        if target_name.lower().endswith(".png") or target_name.lower().endswith(".jpg"):
+            target_name = os.path.splitext(target_name)[0]
+            
+        if not target_name.startswith("scraped_"):
+            if target_name.isdigit():
+                target_name = f"scraped_{target_name}"
+            elif "scraped_" in target_name:
+                match = re.search(r'scraped_\d+', target_name)
+                if match:
+                    target_name = match.group(0)
+                else:
+                    return False
+            else:
+                return False
+
         search_dirs = ["scraped_images"]
         if custom_img_dir:
             search_dirs.insert(0, custom_img_dir)
@@ -136,7 +156,7 @@ def generate_premium_pdf(plan_json_str, page_to_images=None, docx_images_dict=No
             if os.path.exists(scraped_dir):
                 for f in os.listdir(scraped_dir):
                     base_f = os.path.splitext(f)[0]
-                    if f.startswith(image_source + ".") or f == image_source or base_f == image_source:
+                    if base_f == target_name or f == target_name or f.startswith(target_name + "."):
                         try:
                             img_path = os.path.join(scraped_dir, f)
                             p = doc.add_paragraph()
@@ -180,8 +200,9 @@ def generate_premium_pdf(plan_json_str, page_to_images=None, docx_images_dict=No
 
     doc.add_paragraph() # Spacer
     
-    # Hero Image on Cover
-    embed_image_if_exists(plan_data.get("hero_image_source"), target_width_inches=6.5)
+    # Hero Image on Cover (fallback to scraped_0 if omitted)
+    if not embed_image_if_exists(plan_data.get("hero_image_source"), target_width_inches=6.5):
+        embed_image_if_exists("scraped_0", target_width_inches=6.5)
 
     doc.add_page_break()
 
@@ -207,7 +228,8 @@ def generate_premium_pdf(plan_json_str, page_to_images=None, docx_images_dict=No
             p_dim.add_run("Finished Dimensions: ").bold = True
             p_dim.add_run(plan_data['finished_dimensions'])
 
-        embed_image_if_exists(plan_data.get("dimension_image_source"))
+        if not embed_image_if_exists(plan_data.get("dimension_image_source")):
+            embed_image_if_exists("scraped_1")
         doc.add_paragraph()
     
     # ==========================================
@@ -295,20 +317,38 @@ def generate_premium_pdf(plan_json_str, page_to_images=None, docx_images_dict=No
     # 7. CONSTRUCTION STEPS
     # ==========================================
     if plan_data.get("steps"):
-        for step in plan_data.get("steps", []):
+        for step_idx, step in enumerate(plan_data.get("steps", [])):
             doc.add_page_break()
             
             # Step Banner
-            step_num = step.get('step_number', '')
-            step_title = step.get('title', '')
+            step_num = step.get('step_number', step_idx + 1)
+            step_title = step.get('title', f'Step {step_num}')
             add_heading(f"STEP {step_num}: {step_title}", level=1)
             
-            # Handle multiple images if they exist
+            embedded_any = False
+            img_candidates = []
+            
             if "image_sources" in step and isinstance(step["image_sources"], list):
-                for img_src in step["image_sources"]:
-                    embed_image_if_exists(img_src, target_width_inches=6.0)
-            elif step.get("image_source"): # fallback for old single image
-                embed_image_if_exists(step.get("image_source"), target_width_inches=6.0)
+                img_candidates.extend(step["image_sources"])
+            elif step.get("image_sources"):
+                img_candidates.append(step.get("image_sources"))
+                
+            if step.get("image_source"):
+                img_candidates.append(step.get("image_source"))
+            if step.get("image"):
+                img_candidates.append(step.get("image"))
+                
+            for candidate in img_candidates:
+                if embed_image_if_exists(candidate, target_width_inches=6.0):
+                    embedded_any = True
+                    
+            # GUARANTEED STRICT STEP DIAGRAM FALLBACK:
+            # If no image was embedded for this step, automatically embed its corresponding page diagram
+            if not embedded_any:
+                fallback_label = f"scraped_{step_idx + 3}"
+                if not embed_image_if_exists(fallback_label, target_width_inches=6.0):
+                    fallback_label2 = f"scraped_{step_idx + 2}"
+                    embed_image_if_exists(fallback_label2, target_width_inches=6.0)
             
             # Instructions Box
             desc = step.get("exact_description")
