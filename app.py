@@ -71,7 +71,8 @@ def process():
                     create_images_zip(scraped_images, zip_filename)
                 
             # Step 2: AI Processing (without skipping steps/branding removal)
-            json_output = process_with_ai(scraped_text, API_KEY, scraped_images)
+            current_api_key = os.environ.get("GEMINI_API_KEY", API_KEY)
+            json_output = process_with_ai(scraped_text, current_api_key, scraped_images)
             
             with open(f"raw_output_{t_id}.json", "w", encoding='utf-8') as f:
                 f.write(json_output)

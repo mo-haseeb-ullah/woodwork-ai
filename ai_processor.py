@@ -16,7 +16,13 @@ def new_getaddrinfo(*args, **kwargs):
         return old_getaddrinfo(*args, **kwargs)
 socket.getaddrinfo = new_getaddrinfo
 
-def process_with_ai(scraped_text, api_key, scraped_images=None):
+def process_with_ai(scraped_text, api_key=None, scraped_images=None):
+    if not api_key:
+        api_key = os.environ.get("GEMINI_API_KEY", "")
+        
+    if not api_key or api_key.strip() == "" or not api_key.startswith("AIzaSy"):
+        raise Exception("Invalid or missing Gemini API Key. Please add a valid API key (starts with 'AIzaSy...') in your .env file (GEMINI_API_KEY=AIzaSy...). Get your key at https://aistudio.google.com/app/apikey")
+        
     if scraped_images is None:
         scraped_images = []
         
@@ -41,10 +47,11 @@ def process_with_ai(scraped_text, api_key, scraped_images=None):
     # Upload scraped images (limit to top 45 to prevent payload limits)
     scraped_uris = []
     for img_path in scraped_images[:45]:
-        # Extract the base name without extension, e.g., 'scraped_2'
         base_name = os.path.splitext(os.path.basename(img_path))[0]
         print(f"Uploading {base_name}...")
         mime = "image/jpeg"
+        if img_path.lower().endswith(".png"):
+            mime = "image/png"
         
         try:
             uri = upload_file_to_gemini(img_path, mime)
@@ -86,8 +93,9 @@ def process_with_ai(scraped_text, api_key, scraped_images=None):
     }
     """
 
-    print("Sending data to Gemini API (this may take a minute)...")
-    generate_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key={api_key}"
+    print("Sending data to Gemini API...")
+    generate_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={api_key}"
+
     
     parts = [
         {"text": "--- START SCRAPED TEXT ---\n" + scraped_text + "\n--- END SCRAPED TEXT ---\n"}
