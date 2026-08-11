@@ -28,8 +28,8 @@ def clean_extracted_text(text):
 
 def extract_from_pdf(pdf_filepath, output_img_dir):
     """
-    Extracts text page-by-page and renders high-resolution page diagrams from a PDF file.
-    Cleans watermarks, branding, links, headers, and footers from images and text.
+    Extracts text page-by-page and crops ONLY the diagram pictures from a PDF file.
+    Excludes all page screenshots, titles, text blocks, headers, footers, and links.
     """
     os.makedirs(output_img_dir, exist_ok=True)
     
@@ -48,14 +48,30 @@ def extract_from_pdf(pdf_filepath, output_img_dir):
             full_text_parts.append(f"--- PAGE {page_num} ---")
             full_text_parts.append(cleaned_text.strip())
             
-        # 2. Render visual diagram of this page (DPI=150 for crisp rendering)
+        # 2. Extract ONLY the diagram picture (cropping out page titles, text blocks, and footers)
         img_filename = f"scraped_{page_idx}.png"
         img_path = os.path.join(output_img_dir, img_filename)
         
-        pix = page.get_pixmap(dpi=150)
+        blocks = page.get_text('blocks')
+        
+        # Determine top text boundary (title/instructions end y)
+        top_text_ends = [b[3] for b in blocks if 60 <= b[1] <= 350 and not b[4].strip().startswith('---')]
+        top_y = max(top_text_ends) if top_text_ends else 70
+        
+        # Determine bottom text boundary (footer start y)
+        footer_starts = [b[1] for b in blocks if b[1] >= 650]
+        bot_y = min(footer_starts) if footer_starts else (page.rect.height - 40)
+        
+        # Crop rectangle isolating the actual diagram picture
+        y_top = min(top_y + 5, page.rect.height - 100)
+        y_bot = max(bot_y - 5, y_top + 50)
+        
+        clip_rect = pymupdf.Rect(10, y_top, page.rect.width - 10, y_bot)
+        
+        pix = page.get_pixmap(dpi=150, clip=clip_rect)
         pix.save(img_path)
         
-        # 3. Apply top & bottom header/footer whitewashing to erase header links and page numbers
+        # 3. Apply top & bottom header/footer whitewashing for safety
         try:
             remove_watermarks(img_path)
         except Exception as e:
