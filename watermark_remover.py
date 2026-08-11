@@ -1,15 +1,20 @@
-import cv2
-import numpy as np
-import easyocr
 import os
 
-# Initialize the EasyOCR reader globally so it doesn't reload the model for every image
-# We use 'en' (English). gpu=False ensures it runs on CPU to avoid complex CUDA setups unless available.
 try:
-    reader = easyocr.Reader(['en'], gpu=False)
-except Exception as e:
-    print(f"Warning: Failed to initialize EasyOCR. Watermark removal might fail. {e}")
+    import cv2
+    import numpy as np
+    import easyocr
+    try:
+        reader = easyocr.Reader(['en'], gpu=False)
+    except Exception as e:
+        print(f"Warning: Failed to initialize EasyOCR. {e}")
+        reader = None
+except ImportError:
+    cv2 = None
+    numpy = None
+    easyocr = None
     reader = None
+
 
 def remove_watermarks(image_path):
     """

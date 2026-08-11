@@ -47,7 +47,7 @@ def add_page_border(section, color='C68A6B'):
     
     sectPr.append(pgBorders)
 
-def generate_premium_pdf(plan_json_str, page_to_images=None, docx_images_dict=None, output_filename="Premium_Plan.docx"):
+def generate_premium_pdf(plan_json_str, page_to_images=None, docx_images_dict=None, output_filename="Premium_Plan.docx", custom_img_dir=None):
     """
     Generates an elegantly styled DOCX file aligned with ArtisanBlueprint branding.
     """
@@ -118,24 +118,28 @@ def generate_premium_pdf(plan_json_str, page_to_images=None, docx_images_dict=No
     def add_bullet(text):
         doc.add_paragraph(text, style='List Bullet')
 
-    def embed_image_if_exists(image_source, target_width_inches=6.0, center=True):
+    def embed_image_if_exists(image_source, target_width_inches=6.0, center=True, custom_img_dir=None):
         if not image_source or not isinstance(image_source, str) or not image_source.startswith("scraped_"):
             return False
             
-        scraped_dir = "scraped_images"
-        if os.path.exists(scraped_dir):
-            for f in os.listdir(scraped_dir):
-                if f.startswith(image_source + ".") or f == image_source:
-                    try:
-                        img_path = os.path.join(scraped_dir, f)
-                        p = doc.add_paragraph()
-                        if center:
-                            p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-                        run = p.add_run()
-                        run.add_picture(img_path, width=Inches(target_width_inches))
-                        return True
-                    except Exception as e:
-                        print(f"Failed to embed image {img_path}: {e}")
+        search_dirs = ["scraped_images"]
+        if custom_img_dir:
+            search_dirs.insert(0, custom_img_dir)
+            
+        for scraped_dir in search_dirs:
+            if os.path.exists(scraped_dir):
+                for f in os.listdir(scraped_dir):
+                    if f.startswith(image_source + ".") or f == image_source:
+                        try:
+                            img_path = os.path.join(scraped_dir, f)
+                            p = doc.add_paragraph()
+                            if center:
+                                p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                            run = p.add_run()
+                            run.add_picture(img_path, width=Inches(target_width_inches))
+                            return True
+                        except Exception as e:
+                            print(f"Failed to embed image {img_path}: {e}")
         return False
 
     # ==========================================

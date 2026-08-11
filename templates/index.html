@@ -99,18 +99,44 @@
                 </p>
             </header>
 
+            <!-- Mode Switcher Buttons -->
+            <div class="flex items-center justify-center gap-3 mb-6 animate-fade-in-up">
+                <button type="button" id="modeUrlBtn" class="px-6 py-2.5 rounded-full font-bold text-sm transition-all duration-300 shadow-sm bg-brand-900 text-white flex items-center gap-2">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"></path></svg>
+                    From Web URL
+                </button>
+                <button type="button" id="modePdfBtn" class="px-6 py-2.5 rounded-full font-bold text-sm transition-all duration-300 bg-white text-brand-700 hover:bg-brand-100 border border-brand-200 flex items-center gap-2">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                    Upload PDF File
+                </button>
+            </div>
+
             <!-- Sleek Unified Form -->
             <form id="uploadForm" class="w-full max-w-3xl mx-auto flex flex-col items-center relative z-10 animate-fade-in-up" style="animation-delay: 0.2s;">
                 <div class="w-full relative group">
                     <div class="absolute -inset-1 bg-gradient-to-r from-brand-500 to-amber-400 rounded-2xl blur opacity-30 group-hover:opacity-50 transition duration-500"></div>
-                    <div class="relative bg-white/90 backdrop-blur-xl border border-white rounded-2xl p-2 flex flex-col sm:flex-row shadow-xl items-center gap-2">
+                    <div class="relative bg-white/90 backdrop-blur-xl border border-white rounded-2xl p-3 flex flex-col sm:flex-row shadow-xl items-center gap-3">
                         
-                        <div class="pl-4 text-brand-400 flex-shrink-0 hidden sm:block">
-                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"></path></svg>
+                        <!-- URL Input View -->
+                        <div id="urlContainer" class="w-full flex items-center gap-2">
+                            <div class="pl-3 text-brand-400 flex-shrink-0 hidden sm:block">
+                                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"></path></svg>
+                            </div>
+                            <input type="url" id="urlInput" placeholder="Paste Woodworking Blog URL here..." 
+                                   class="w-full bg-transparent text-brand-900 text-lg sm:text-xl font-medium focus:outline-none py-2 px-2 placeholder-brand-300">
                         </div>
-                        
-                        <input type="url" id="urlInput" placeholder="Paste Woodworking Blog URL here..." required 
-                               class="w-full bg-transparent text-brand-900 text-lg sm:text-xl font-medium focus:outline-none py-3 px-4 placeholder-brand-300">
+
+                        <!-- PDF Input View -->
+                        <div id="pdfContainer" class="w-full hidden flex-col sm:flex-row items-center gap-2 py-1 px-3 border-2 border-dashed border-brand-200 rounded-xl bg-brand-50/50 hover:bg-brand-50 transition-colors cursor-pointer">
+                            <div class="text-brand-500 flex-shrink-0">
+                                <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path></svg>
+                            </div>
+                            <div class="flex-grow text-left">
+                                <span id="pdfFileName" class="text-sm font-semibold text-brand-800 block">Choose or drop a Woodworking PDF file...</span>
+                                <span class="text-xs text-brand-500 block">Extracts all text, steps, & images automatically</span>
+                            </div>
+                            <input type="file" id="pdfInput" accept=".pdf" class="hidden">
+                        </div>
                         
                         <button type="submit" id="submitBtn" class="w-full sm:w-auto flex-shrink-0 relative px-8 py-4 bg-brand-900 hover:bg-brand-700 text-white font-bold rounded-xl transition-all duration-300 flex items-center justify-center shadow-lg hover:shadow-brand-500/40">
                             <span class="btn-text">Generate Blueprint</span>
@@ -131,7 +157,19 @@
                     <div class="w-2.5 h-2.5 rounded-full bg-brand-300"></div>
                     <span class="ml-2 text-brand-400 text-xs font-semibold uppercase tracking-wider">Workshop Status</span>
                 </div>
-                <p class="status-text text-brand-700 font-medium"></p>
+                <p class="status-text text-brand-700 font-medium mb-4"></p>
+                
+                <!-- Dual Download Action Buttons -->
+                <div id="downloadContainer" class="hidden flex-wrap items-center gap-4 pt-2">
+                    <a id="downloadDocxBtn" href="#" class="px-6 py-3 bg-brand-900 hover:bg-brand-700 text-white font-bold rounded-xl transition-all duration-300 shadow-md flex items-center gap-2">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                        Download Word Document (.docx)
+                    </a>
+                    <a id="downloadZipBtn" href="#" class="hidden px-6 py-3 bg-brand-500 hover:bg-brand-600 text-white font-bold rounded-xl transition-all duration-300 shadow-md flex items-center gap-2">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+                        Download Images ZIP (.zip)
+                    </a>
+                </div>
             </div>
         </section>
 
