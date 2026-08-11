@@ -20,8 +20,8 @@ def process_with_ai(scraped_text, api_key=None, scraped_images=None):
     if not api_key:
         api_key = os.environ.get("GEMINI_API_KEY", "")
         
-    if not api_key or api_key.strip() == "" or not api_key.startswith("AIzaSy"):
-        raise Exception("Invalid or missing Gemini API Key. Please add a valid API key (starts with 'AIzaSy...') in your .env file (GEMINI_API_KEY=AIzaSy...). Get your key at https://aistudio.google.com/app/apikey")
+    if not api_key or api_key.strip() == "":
+        raise Exception("Invalid or missing Gemini API Key. Please add a valid API key in your .env file (GEMINI_API_KEY=...). Get your key at https://aistudio.google.com/app/apikey")
         
     if scraped_images is None:
         scraped_images = []
@@ -94,8 +94,8 @@ def process_with_ai(scraped_text, api_key=None, scraped_images=None):
     """
 
     print("Sending data to Gemini API...")
-    generate_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={api_key}"
-
+    models_to_try = ["gemini-2.5-flash", "gemini-1.5-flash"]
+    generate_url = f"https://generativelanguage.googleapis.com/v1beta/models/{models_to_try[0]}:generateContent?key={api_key}"
     
     parts = [
         {"text": "--- START SCRAPED TEXT ---\n" + scraped_text + "\n--- END SCRAPED TEXT ---\n"}
@@ -117,19 +117,26 @@ def process_with_ai(scraped_text, api_key=None, scraped_images=None):
     
     max_retries = 3
     def make_gemini_request(payload_data):
-        for attempt in range(max_retries):
-            gen_response = requests.post(generate_url, headers={"Content-Type": "application/json"}, json=payload_data, timeout=(10, 60))
-            
-            if gen_response.status_code == 429:
-                print(f"Rate limited (429). Retrying in 10 seconds... (Attempt {attempt+1}/{max_retries})")
-                time.sleep(10)
-                continue
+        for model in models_to_try:
+            curr_url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}"
+            for attempt in range(max_retries):
+                gen_response = requests.post(curr_url, headers={"Content-Type": "application/json"}, json=payload_data, timeout=(10, 60))
                 
-            if not gen_response.ok:
-                print("Gemini API Error:", gen_response.text)
-            gen_response.raise_for_status()
-            return gen_response.json()
-        raise Exception("Max retries exceeded")
+                if gen_response.status_code == 429:
+                    print(f"Rate limited (429). Retrying in 10 seconds... (Attempt {attempt+1}/{max_retries})")
+                    time.sleep(10)
+                    continue
+                    
+                if gen_response.status_code == 404:
+                    print(f"Model {model} returned 404, trying fallback model...")
+                    break
+                    
+                if not gen_response.ok:
+                    print("Gemini API Error:", gen_response.text)
+                gen_response.raise_for_status()
+                return gen_response.json()
+        raise Exception("Failed to call Gemini API across all model endpoints")
+
 
     print("Pass 1: Extracting data...")
     result1 = make_gemini_request(payload)
