@@ -60,19 +60,21 @@ def process_with_ai(scraped_text, api_key=None, scraped_images=None):
             print(f"Failed to upload {img_path}: {e}")
 
     prompt = """
-    You are an expert woodworking assistant. I have provided the scraped text from a woodworking blog post.
-    I have also attached several images scraped from the original project website, labeled as 'scraped_0', 'scraped_1', etc.
+    You are an expert woodworking assistant. I have provided the extracted text and images from a woodworking guide/PDF.
+    Each page N of the input text corresponds to the attached page diagram image labeled 'scraped_{N-1}' (e.g., Page 1 = 'scraped_0', Page 2 = 'scraped_1', Page 3 = 'scraped_2', etc.).
     
     Your job is to read the text and extract/structure this data according to these EXACT rules. DO NOT hallucinate or add anything from your own knowledge.
     1. Extract the Project Name, Difficulty Level, and Finished Dimensions.
     2. Write a short `project_intro`.
     3. Extract the complete Shopping List (Materials), Cut list, and Tools list. If there is no explicit 'Tools' heading, carefully read the text to find which tools are mentioned. Do NOT guess or hallucinate tools that are not mentioned.
-    4. First, identify the total number of steps in the source text. You must ensure your final JSON array contains exactly that many steps. Do not skip any. Extract ALL construction `steps` in order, exactly as they appear in the original text. DO NOT rewrite, summarize, or alter the explanation. You must copy the text for each step character-for-character into a single `exact_description` string. DO NOT use bulleted lists for step descriptions unless the original text explicitly used bullets.
-    5. CRITICAL: Remove all branding, promotional text, website names, copyright notices, author names (names of persons/creators), watermarks (e.g. Construct101), logo names, the word "Free" (or phrases like "Free Woodworking Plans"), and links from the extracted text. Give me only pure woodworking plans.
-    6. For the `hero_image`, `dimension_image`, `tools_image`, and each step's `image`:
-       - First, check if one or more of the attached scraped images matches this location. If so, provide their labels (e.g., 'scraped_0') as a list of strings for `image_sources` or `xxx_image_source`.
-       - If no scraped image matches, return an empty list or null.
-    7. If an image is completely missing from the scraped images, list it in `missing_images`.
+    4. CRITICAL: Identify EVERY SINGLE STEP in the source document across all pages. Your final JSON array MUST contain EVERY construction step in order. Do NOT skip, omit, combine, or summarize any step. Copy the text for each step character-for-character into a single `exact_description` string.
+    5. CRITICAL BRANDING REMOVAL: Remove all branding, promotional text, website names, copyright notices, author names (names of persons/creators), watermarks (e.g. Construct101), logo names, the word "Free" (or phrases like "Free Woodworking Plans"), and links from the extracted text. Give me only pure woodworking plans.
+    6. MAP PAGE IMAGES EXACTLY:
+       - Set `hero_image_source` to 'scraped_0' (Page 1 diagram).
+       - Set `dimension_image_source` to 'scraped_1' (Page 2 diagram).
+       - Set `tools_image_source` to 'scraped_2' (Page 3 diagram) if tools are shown on page 3.
+       - For each construction step appearing on Page N, map its `image_sources` to ['scraped_{N-1}'] (e.g. Step 1 on Page 4 -> ['scraped_3'], Step 2 on Page 5 -> ['scraped_4'], etc.).
+    7. If an image is completely missing from the attached images, list it in `missing_images`.
     8. Extract any Finishing Instructions, Preparation Instructions, or final sanding/painting/staining steps into a list of strings called `finishing_instructions`.
     
     You MUST return the output as a valid JSON object matching exactly this structure. ONLY include these exact keys:
@@ -95,10 +97,9 @@ def process_with_ai(scraped_text, api_key=None, scraped_images=None):
 
     print("Sending data to Gemini API...")
     models_to_try = ["gemini-2.5-flash", "gemini-1.5-flash"]
-    generate_url = f"https://generativelanguage.googleapis.com/v1beta/models/{models_to_try[0]}:generateContent?key={api_key}"
     
     parts = [
-        {"text": "--- START SCRAPED TEXT ---\n" + scraped_text + "\n--- END SCRAPED TEXT ---\n"}
+        {"text": "--- START EXTRACTED TEXT ---\n" + scraped_text + "\n--- END EXTRACTED TEXT ---\n"}
     ]
     
     for base_name, uri, _, mime in scraped_uris:
@@ -111,7 +112,8 @@ def process_with_ai(scraped_text, api_key=None, scraped_images=None):
         "contents": [{"parts": parts}],
         "generationConfig": {
             "responseMimeType": "application/json",
-            "temperature": 0.1
+            "temperature": 0.1,
+            "maxOutputTokens": 8192
         }
     }
     

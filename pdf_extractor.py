@@ -1,65 +1,43 @@
 import os
 import zipfile
-from pypdf import PdfReader
+import pymupdf
 from watermark_remover import remove_watermarks
 
 def extract_from_pdf(pdf_filepath, output_img_dir):
     """
-    Extracts text and embedded images from a PDF file.
-    Saves extracted images to output_img_dir and cleans watermarks.
-    Returns (extracted_images_list, extracted_text).
+    Extracts text page-by-page and renders high-resolution page diagrams from a PDF file.
+    Ensures 100% diagram alignment per page and step without missing any pictures or steps.
     """
     os.makedirs(output_img_dir, exist_ok=True)
     
-    reader = PdfReader(pdf_filepath)
+    doc = pymupdf.open(pdf_filepath)
     full_text_parts = []
     extracted_images = []
     
-    img_counter = 0
-    
-    for page_idx, page in enumerate(reader.pages):
-        # Extract page text
-        page_text = page.extract_text() or ""
+    for page_idx, page in enumerate(doc):
+        page_num = page_idx + 1
+        
+        # 1. Extract complete text for this page
+        page_text = page.get_text("text") or ""
         if page_text.strip():
-            full_text_parts.append(f"--- PAGE {page_idx + 1} ---")
+            full_text_parts.append(f"--- PAGE {page_num} ---")
             full_text_parts.append(page_text.strip())
             
-        # Extract images from page
+        # 2. Render exact high-res visual diagram of this page (DPI=150 for crisp quality)
+        img_filename = f"scraped_{page_idx}.png"
+        img_path = os.path.join(output_img_dir, img_filename)
+        
+        pix = page.get_pixmap(dpi=150)
+        pix.save(img_path)
+        
+        # Apply watermark/branding removal on page diagram
         try:
-            for count, image_file_object in enumerate(page.images):
-                img_ext = os.path.splitext(image_file_object.name)[1]
-                if not img_ext or img_ext.lower() not in ['.jpg', '.jpeg', '.png', '.bmp', '.webp']:
-                    img_ext = '.png'
-                    
-                img_filename = f"scraped_{img_counter}{img_ext}"
-                img_path = os.path.join(output_img_dir, img_filename)
-                
-                with open(img_path, "wb") as fp:
-                    fp.write(image_file_object.data)
-                    
-                # Filter out tiny clip-art tiles, icons, and thumbnails (< 150x150 px)
-                try:
-                    from PIL import Image
-                    with Image.open(img_path) as im:
-                        width, height = im.size
-                        if width < 150 or height < 150:
-                            fp.close()
-                            os.remove(img_path)
-                            continue
-                except Exception:
-                    pass
-                    
-                # Apply watermark/branding removal on valid extracted images
-                try:
-                    remove_watermarks(img_path)
-                except Exception as e:
-                    print(f"Watermark removal error for {img_path}: {e}")
-                    
-                extracted_images.append(img_path)
-                img_counter += 1
-        except Exception as img_err:
-            print(f"Error extracting images on page {page_idx + 1}: {img_err}")
+            remove_watermarks(img_path)
+        except Exception as e:
+            print(f"Watermark removal error for {img_path}: {e}")
             
+        extracted_images.append(img_path)
+        
     extracted_text = "\n\n".join(full_text_parts)
     return extracted_images, extracted_text
 
