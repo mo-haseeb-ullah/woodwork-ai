@@ -118,7 +118,7 @@ def generate_premium_pdf(plan_json_str, page_to_images=None, docx_images_dict=No
     def add_bullet(text):
         doc.add_paragraph(text, style='List Bullet')
 
-    def embed_image_if_exists(image_source, target_width_inches=6.0, center=True, custom_img_dir=None):
+    def embed_image_if_exists(image_source, target_width_inches=6.0, center=True):
         if not image_source or not isinstance(image_source, str) or not image_source.startswith("scraped_"):
             return False
             
@@ -129,7 +129,8 @@ def generate_premium_pdf(plan_json_str, page_to_images=None, docx_images_dict=No
         for scraped_dir in search_dirs:
             if os.path.exists(scraped_dir):
                 for f in os.listdir(scraped_dir):
-                    if f.startswith(image_source + ".") or f == image_source:
+                    base_f = os.path.splitext(f)[0]
+                    if f.startswith(image_source + ".") or f == image_source or base_f == image_source:
                         try:
                             img_path = os.path.join(scraped_dir, f)
                             p = doc.add_paragraph()

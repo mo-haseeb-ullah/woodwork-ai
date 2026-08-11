@@ -37,7 +37,19 @@ def extract_from_pdf(pdf_filepath, output_img_dir):
                 with open(img_path, "wb") as fp:
                     fp.write(image_file_object.data)
                     
-                # Apply watermark/branding removal on extracted images
+                # Filter out tiny clip-art tiles, icons, and thumbnails (< 150x150 px)
+                try:
+                    from PIL import Image
+                    with Image.open(img_path) as im:
+                        width, height = im.size
+                        if width < 150 or height < 150:
+                            fp.close()
+                            os.remove(img_path)
+                            continue
+                except Exception:
+                    pass
+                    
+                # Apply watermark/branding removal on valid extracted images
                 try:
                     remove_watermarks(img_path)
                 except Exception as e:

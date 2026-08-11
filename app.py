@@ -140,5 +140,4 @@ if __name__ == '__main__':
     os.makedirs('static', exist_ok=True)
     os.makedirs('uploads', exist_ok=True)
     os.makedirs('extracted_images', exist_ok=True)
-    app.run(debug=True, port=5000)
-
+    app.run(debug=False, port=5000)
