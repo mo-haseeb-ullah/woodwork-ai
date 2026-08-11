@@ -28,8 +28,8 @@ def clean_extracted_text(text):
 
 def extract_from_pdf(pdf_filepath, output_img_dir):
     """
-    Extracts text page-by-page and crops ONLY the diagram pictures from a PDF file.
-    Excludes all page screenshots, titles, text blocks, headers, footers, and links.
+    Extracts text page-by-page and crops ONLY the pure diagram picture graphics from a PDF file.
+    Excludes all text paragraphs, titles, headers, footers, and links from the extracted picture.
     """
     os.makedirs(output_img_dir, exist_ok=True)
     
@@ -48,27 +48,42 @@ def extract_from_pdf(pdf_filepath, output_img_dir):
             full_text_parts.append(f"--- PAGE {page_num} ---")
             full_text_parts.append(cleaned_text.strip())
             
-        # 2. Extract ONLY the diagram picture (cropping out page titles, text blocks, and footers)
+        # 2. Crop ONLY the pure diagram image graphic (excluding page text, titles, headers, footers)
         img_filename = f"scraped_{page_idx}.png"
         img_path = os.path.join(output_img_dir, img_filename)
         
-        blocks = page.get_text('blocks')
+        info = page.get_image_info(xrefs=True)
+        # Filter for main step diagram image bboxes (width > 60, height > 60, y0 > 50)
+        diagram_info = [
+            item for item in info 
+            if (item['bbox'][3] - item['bbox'][1]) > 60 
+            and (item['bbox'][2] - item['bbox'][0]) > 60 
+            and item['bbox'][1] > 50
+        ]
         
-        # Determine top text boundary (title/instructions end y)
-        top_text_ends = [b[3] for b in blocks if 60 <= b[1] <= 350 and not b[4].strip().startswith('---')]
-        top_y = max(top_text_ends) if top_text_ends else 70
-        
-        # Determine bottom text boundary (footer start y)
-        footer_starts = [b[1] for b in blocks if b[1] >= 650]
-        bot_y = min(footer_starts) if footer_starts else (page.rect.height - 40)
-        
-        # Crop rectangle isolating the actual diagram picture
-        y_top = min(top_y + 5, page.rect.height - 100)
-        y_bot = max(bot_y - 5, y_top + 50)
-        
-        clip_rect = pymupdf.Rect(10, y_top, page.rect.width - 10, y_bot)
-        
-        pix = page.get_pixmap(dpi=150, clip=clip_rect)
+        if diagram_info:
+            bbox = pymupdf.Rect()
+            for item in diagram_info:
+                bbox.include_rect(item['bbox'])
+            # Add 4px padding safely
+            clip_rect = pymupdf.Rect(
+                max(0, bbox.x0 - 4), 
+                max(0, bbox.y0 - 4), 
+                min(page.rect.width, bbox.x1 + 4), 
+                min(page.rect.height, bbox.y1 + 4)
+            )
+            pix = page.get_pixmap(dpi=150, clip=clip_rect)
+        else:
+            # Fallback for text-only pages: crop central area excluding top header & bottom footer
+            blocks = page.get_text('blocks')
+            top_text_ends = [b[3] for b in blocks if 60 <= b[1] <= 350 and not b[4].strip().startswith('---')]
+            top_y = max(top_text_ends) if top_text_ends else 70
+            footer_starts = [b[1] for b in blocks if b[1] >= 650]
+            bot_y = min(footer_starts) if footer_starts else (page.rect.height - 40)
+            
+            clip_rect = pymupdf.Rect(10, min(top_y + 5, page.rect.height - 100), page.rect.width - 10, max(bot_y - 5, top_y + 50))
+            pix = page.get_pixmap(dpi=150, clip=clip_rect)
+            
         pix.save(img_path)
         
         # 3. Apply top & bottom header/footer whitewashing for safety
