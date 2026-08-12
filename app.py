@@ -33,10 +33,15 @@ from pdf_direct_parser import parse_pdf_directly
 
 @app.route('/process', methods=['POST'])
 def process():
-    mode = request.form.get('mode', 'url')
-    url = request.form.get('url', '').strip()
     pdf_file = request.files.get('pdf_file')
+    url = request.form.get('url', '').strip()
+    mode = request.form.get('mode')
     
+    if not mode:
+        mode = 'pdf' if (pdf_file and pdf_file.filename != '') else 'url'
+    elif mode == 'url' and pdf_file and pdf_file.filename != '' and not url:
+        mode = 'pdf'
+        
     if mode == 'url' and not url:
         return jsonify({'error': 'Please enter a valid website URL.'}), 400
         

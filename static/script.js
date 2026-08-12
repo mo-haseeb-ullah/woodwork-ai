@@ -54,6 +54,7 @@ document.addEventListener('DOMContentLoaded', () => {
         downloadContainer.classList.add('hidden');
 
         const formData = new FormData();
+        formData.append('mode', currentMode);
 
         if (currentMode === 'url') {
             const projectUrl = urlInput.value.trim();
