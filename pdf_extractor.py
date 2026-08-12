@@ -1,6 +1,15 @@
 import os
 import re
 import pymupdf
+import zipfile
+
+def create_images_zip(image_paths, zip_output_path):
+    with zipfile.ZipFile(zip_output_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
+        for img_path in image_paths:
+            if os.path.exists(img_path):
+                arcname = os.path.basename(img_path)
+                zipf.write(img_path, arcname=arcname)
+    return zip_output_path
 
 def clean_extracted_text(text):
     if not text:
