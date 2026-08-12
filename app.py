@@ -29,39 +29,51 @@ def index():
 
 tasks = {}
 
+from pdf_direct_parser import parse_pdf_directly
+
 @app.route('/process', methods=['POST'])
 def process():
-    project_url = request.form.get('url')
+    mode = request.form.get('mode', 'url')
+    url = request.form.get('url', '').strip()
     pdf_file = request.files.get('pdf_file')
     
-    if not project_url and not pdf_file:
-        return jsonify({'error': 'Please provide either a Blog URL or upload a PDF file.'}), 400
+    if mode == 'url' and not url:
+        return jsonify({'error': 'Please enter a valid website URL.'}), 400
+        
+    if mode == 'pdf' and (not pdf_file or pdf_file.filename == ''):
+        return jsonify({'error': 'Please select a valid PDF file to upload.'}), 400
         
     task_id = str(uuid.uuid4())
-    tasks[task_id] = {'status': 'processing'}
+    tasks[task_id] = {'status': 'processing', 'progress': 'Extracting data...'}
     
-    def run_task(t_id, url=None, pdf_filepath=None):
+    # Save PDF file if uploaded
+    pdf_filepath = None
+    if mode == 'pdf' and pdf_file:
+        os.makedirs("uploads", exist_ok=True)
+        pdf_filepath = os.path.join("uploads", f"{task_id}_{pdf_file.filename}")
+        pdf_file.save(pdf_filepath)
+
+    def run_task(t_id, target_url, is_pdf, uploaded_pdf_path):
         try:
             custom_img_dir = None
             zip_filename = None
             
-            if pdf_filepath:
-                # PDF Processing Mode
+            if is_pdf and uploaded_pdf_path:
                 pdf_img_dir = os.path.join("extracted_images", f"pdf_{t_id}")
-                scraped_images, scraped_text = extract_from_pdf(pdf_filepath, pdf_img_dir)
+                scraped_images, scraped_text = extract_from_pdf(uploaded_pdf_path, pdf_img_dir)
                 custom_img_dir = pdf_img_dir
                 
-                if not scraped_text.strip():
-                    tasks[t_id] = {'status': 'error', 'error': 'Could not extract text from the provided PDF file.'}
-                    return
-                    
                 # Build ZIP file containing extracted images
                 if scraped_images:
                     zip_filename = f"PDF_Images_{t_id}.zip"
                     create_images_zip(scraped_images, zip_filename)
+                    
+                # Step 2: Use direct Python PDF parser for 100% complete step extraction
+                parsed_plan = parse_pdf_directly(uploaded_pdf_path)
+                json_output = json.dumps(parsed_plan, indent=2)
             else:
                 # URL Scraping Mode
-                scraped_images, scraped_text = scrape_images_from_url(url)
+                scraped_images, scraped_text = scrape_images_from_url(target_url)
                 if not scraped_text:
                     tasks[t_id] = {'status': 'error', 'error': 'Could not extract text from the provided URL.'}
                     return
@@ -70,9 +82,8 @@ def process():
                     zip_filename = f"Plan_Images_{t_id}.zip"
                     create_images_zip(scraped_images, zip_filename)
                 
-            # Step 2: AI Processing (without skipping steps/branding removal)
-            current_api_key = os.environ.get("GEMINI_API_KEY", API_KEY)
-            json_output = process_with_ai(scraped_text, current_api_key, scraped_images)
+                current_api_key = os.environ.get("GEMINI_API_KEY", API_KEY)
+                json_output = process_with_ai(scraped_text, current_api_key, scraped_images)
             
             with open(f"raw_output_{t_id}.json", "w", encoding='utf-8') as f:
                 f.write(json_output)
