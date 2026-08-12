@@ -133,24 +133,13 @@ def generate_premium_pdf(plan_json_str, page_to_images=None, docx_images_dict=No
             image_source = str(image_source)
             
         target_name = image_source.strip()
-        if target_name.lower().endswith(".png") or target_name.lower().endswith(".jpg"):
+        if target_name.lower().endswith((".png", ".jpg", ".jpeg")):
             target_name = os.path.splitext(target_name)[0]
-            
-        if not target_name.startswith("scraped_"):
-            if target_name.isdigit():
-                target_name = f"scraped_{target_name}"
-            elif "scraped_" in target_name:
-                match = re.search(r'scraped_\d+', target_name)
-                if match:
-                    target_name = match.group(0)
-                else:
-                    return False
-            else:
-                return False
 
-        search_dirs = ["scraped_images"]
+        search_dirs = []
         if custom_img_dir:
-            search_dirs.insert(0, custom_img_dir)
+            search_dirs.append(custom_img_dir)
+        search_dirs.append("scraped_images")
             
         for scraped_dir in search_dirs:
             if os.path.exists(scraped_dir):

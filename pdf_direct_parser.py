@@ -6,7 +6,7 @@ from pdf_extractor import clean_extracted_text
 def parse_pdf_directly(pdf_filepath):
     """
     Direct Python PDF parser that extracts 100% of pages, steps, 
-    shopping lists, cut lists, and step descriptions without missing anything.
+    shopping lists, cut lists, and maps exact page-by-page diagram images.
     """
     doc = pymupdf.open(pdf_filepath)
     
@@ -65,15 +65,12 @@ def parse_pdf_directly(pdf_filepath):
         if not lines:
             continue
             
-        # Clean lines: remove standalone symbols
         meaningful_lines = [l for l in lines if l not in ["•", "″", "′", "-"] and not l.startswith("Visit www")]
-        
         if not meaningful_lines:
             continue
             
         raw_title = meaningful_lines[0]
         
-        # If raw_title is a cut item line (e.g. 4 - 3/4 plywood...), use next line or extract subject
         if (raw_title.startswith("•") or raw_title[0].isdigit() or len(raw_title) < 3) and len(meaningful_lines) > 1:
             step_title = meaningful_lines[1]
         else:
@@ -89,7 +86,8 @@ def parse_pdf_directly(pdf_filepath):
         if not step_desc:
             step_desc = clean_extracted_text(step_title)
             
-        img_label = f"scraped_{page_idx}"
+        page_num = page_idx + 1
+        img_label = f"page_{page_num}_img"
         
         steps.append({
             "step_number": step_num,
@@ -104,9 +102,9 @@ def parse_pdf_directly(pdf_filepath):
         "project_intro": project_intro if project_intro else "Complete DIY construction guide and woodworking blueprint.",
         "difficulty_level": "Intermediate DIY",
         "finished_dimensions": dimensions,
-        "hero_image_source": "scraped_0",
-        "dimension_image_source": "scraped_1",
-        "tools_image_source": "scraped_2",
+        "hero_image_source": "page_1_img",
+        "dimension_image_source": "page_2_img",
+        "tools_image_source": "page_3_img",
         "materials": materials,
         "cut_list": cut_list if cut_list else materials[:8],
         "tools": [{"name": "Miter Saw"}, {"name": "Circular Saw"}, {"name": "Framing Hammer"}, {"name": "Tape Measure"}, {"name": "Level"}],
