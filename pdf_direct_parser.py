@@ -65,12 +65,25 @@ def parse_pdf_directly(pdf_filepath):
         if not lines:
             continue
             
-        # Determine Title and Description for this step page
-        step_title = lines[0]
-        if step_title.lower().startswith("visit") or step_title.lower().startswith("www"):
-            step_title = lines[1] if len(lines) > 1 else f"Step {step_num}"
+        # Clean lines: remove standalone symbols
+        meaningful_lines = [l for l in lines if l not in ["•", "″", "′", "-"] and not l.startswith("Visit www")]
+        
+        if not meaningful_lines:
+            continue
             
-        desc_lines = lines[1:] if len(lines) > 1 else lines
+        raw_title = meaningful_lines[0]
+        
+        # If raw_title is a cut item line (e.g. 4 - 3/4 plywood...), use next line or extract subject
+        if (raw_title.startswith("•") or raw_title[0].isdigit() or len(raw_title) < 3) and len(meaningful_lines) > 1:
+            step_title = meaningful_lines[1]
+        else:
+            step_title = raw_title
+            
+        step_title = re.sub(r'^[•\-\d\s]+', '', step_title).strip()
+        if not step_title:
+            step_title = f"Step {step_num}"
+            
+        desc_lines = meaningful_lines[1:] if len(meaningful_lines) > 1 else meaningful_lines
         step_desc = clean_extracted_text(" ".join(desc_lines))
         
         if not step_desc:
