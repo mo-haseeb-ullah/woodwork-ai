@@ -339,7 +339,15 @@ def generate_premium_pdf(plan_json_str, page_to_images=None, docx_images_dict=No
                     fallback_label2 = f"scraped_{step_idx + 2}"
                     embed_image_if_exists(fallback_label2, target_width_inches=6.0)
             
-            # Instructions Box
+            # Bullet materials list (if present)
+            step_mats = step.get("step_materials")
+            if step_mats and isinstance(step_mats, list):
+                for mat in step_mats:
+                    if mat:
+                        add_bullet(str(mat))
+                doc.add_paragraph() # Spacer
+                
+            # Instructions Paragraph Box
             desc = step.get("exact_description")
             if desc:
                 doc.add_paragraph(str(desc))

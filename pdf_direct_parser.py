@@ -6,7 +6,8 @@ from pdf_extractor import clean_extracted_text
 def parse_pdf_directly(pdf_filepath):
     """
     Direct Python PDF parser that extracts 100% of pages, steps, 
-    shopping lists, cut lists, and maps exact page-by-page diagram images.
+    shopping lists, cut lists, separating bullet list items from 
+    instruction paragraphs for exact 1-to-1 PDF layout matching.
     """
     doc = pymupdf.open(pdf_filepath)
     
@@ -62,36 +63,46 @@ def parse_pdf_directly(pdf_filepath):
         raw = page.get_text("text") or ""
         lines = [l.strip() for l in raw.split("\n") if l.strip() and "Construct101" not in l and "Page" not in l and "Legal:" not in l and "Disclaimer:" not in l]
         
-        if not lines:
+        clean_lines = [l for l in lines if l not in ["•", "″", "′", "-"] and not l.startswith("Visit www")]
+        if not clean_lines:
             continue
             
-        meaningful_lines = [l for l in lines if l not in ["•", "″", "′", "-"] and not l.startswith("Visit www")]
-        if not meaningful_lines:
-            continue
-            
-        raw_title = meaningful_lines[0]
+        raw_title = clean_lines[0]
         
-        if (raw_title.startswith("•") or raw_title[0].isdigit() or len(raw_title) < 3) and len(meaningful_lines) > 1:
-            step_title = meaningful_lines[1]
+        # Check if raw_title is actually a cut list bullet item
+        if (raw_title.startswith("•") or (raw_title[0].isdigit() and ("–" in raw_title or "-" in raw_title)) or len(raw_title) < 3) and len(clean_lines) > 1:
+            step_title = clean_lines[1]
+            body_lines = clean_lines
         else:
             step_title = raw_title
+            body_lines = clean_lines[1:]
             
         step_title = re.sub(r'^[•\-\d\s]+', '', step_title).strip()
-        if not step_title:
+        if not step_title or step_title.isdigit():
             step_title = f"Step {step_num}"
             
-        desc_lines = meaningful_lines[1:] if len(meaningful_lines) > 1 else meaningful_lines
-        step_desc = clean_extracted_text(" ".join(desc_lines))
+        step_bullets = []
+        instruction_lines = []
         
-        if not step_desc:
-            step_desc = clean_extracted_text(step_title)
-            
+        for l in body_lines:
+            if l == step_title:
+                continue
+            # Classify bullet material vs paragraph instruction
+            if l.startswith("•") or re.match(r'^\d+[\s\–\-]+', l) or "cut to size" in l.lower() or "sheet" in l.lower() or ("plywood" in l.lower() and not l.startswith("Measure")):
+                clean_b = l.lstrip("•").strip()
+                if clean_b and clean_b not in step_bullets:
+                    step_bullets.append(clean_b)
+            else:
+                instruction_lines.append(l)
+                
+        step_desc = clean_extracted_text(" ".join(instruction_lines))
         page_num = page_idx + 1
         img_label = f"page_{page_num}_img"
         
         steps.append({
             "step_number": step_num,
             "title": step_title,
+            "step_materials": step_bullets,
             "exact_description": step_desc,
             "image_sources": [img_label]
         })
