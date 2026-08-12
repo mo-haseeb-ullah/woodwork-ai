@@ -6,8 +6,8 @@ from pdf_extractor import clean_extracted_text
 def parse_pdf_directly(pdf_filepath):
     """
     Direct Python PDF parser that extracts 100% of pages, steps, 
-    shopping lists, cut lists, separating bullet list items from 
-    instruction paragraphs for exact 1-to-1 PDF layout matching.
+    shopping lists, cut lists, preserving 100% of exact text and bullet points
+    without missing any step description.
     """
     doc = pymupdf.open(pdf_filepath)
     
@@ -67,27 +67,27 @@ def parse_pdf_directly(pdf_filepath):
         if not clean_lines:
             continue
             
-        raw_title = clean_lines[0]
-        
-        # Check if raw_title is actually a cut list bullet item
-        if (raw_title.startswith("•") or (raw_title[0].isdigit() and ("–" in raw_title or "-" in raw_title)) or len(raw_title) < 3) and len(clean_lines) > 1:
-            step_title = clean_lines[1]
-            body_lines = clean_lines
+        # Determine Title
+        first_line = clean_lines[0]
+        if first_line in ["Floor", "Walls", "Rafters", "Siding", "Roof", "Door", "Trim", "Front/Back Wall Frame:", "Right/Left Wall Frame:", "Front Top Wall Frame:"]:
+            step_title = first_line.rstrip(":")
+            content_lines = clean_lines[1:]
         else:
-            step_title = raw_title
-            body_lines = clean_lines[1:]
-            
-        step_title = re.sub(r'^[•\-\d\s]+', '', step_title).strip()
-        if not step_title or step_title.isdigit():
-            step_title = f"Step {step_num}"
-            
+            # Check if second line is better or generate descriptive title
+            if len(clean_lines) > 1 and clean_lines[1] in ["Front/Back Wall Frame:", "Right/Left Wall Frame:", "Front Top Wall Frame:"]:
+                step_title = clean_lines[1].rstrip(":")
+                content_lines = [clean_lines[0]] + clean_lines[2:]
+            elif len(first_line) > 50 or "measure and cut" in first_line.lower() or "raise and secure" in first_line.lower() or "rafters are" in first_line.lower() or "install" in first_line.lower():
+                step_title = f"Step {step_num}"
+                content_lines = clean_lines
+            else:
+                step_title = first_line.rstrip(":")
+                content_lines = clean_lines[1:]
+                
         step_bullets = []
         instruction_lines = []
         
-        for l in body_lines:
-            if l == step_title:
-                continue
-            # Classify bullet material vs paragraph instruction
+        for l in content_lines:
             if l.startswith("•") or re.match(r'^\d+[\s\–\-]+', l) or "cut to size" in l.lower() or "sheet" in l.lower() or ("plywood" in l.lower() and not l.startswith("Measure")):
                 clean_b = l.lstrip("•").strip()
                 if clean_b and clean_b not in step_bullets:
@@ -96,6 +96,9 @@ def parse_pdf_directly(pdf_filepath):
                 instruction_lines.append(l)
                 
         step_desc = clean_extracted_text(" ".join(instruction_lines))
+        if not step_desc and step_title.startswith("Step "):
+            step_desc = clean_extracted_text(clean_lines[0])
+            
         page_num = page_idx + 1
         img_label = f"page_{page_num}_img"
         
