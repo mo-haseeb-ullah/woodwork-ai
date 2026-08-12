@@ -58,14 +58,14 @@ def process():
         pdf_filepath = os.path.join("uploads", f"{task_id}_{pdf_file.filename}")
         pdf_file.save(pdf_filepath)
 
-    def run_task(t_id, target_url, is_pdf, uploaded_pdf_path):
+    def run_task(t_id, url=None, pdf_filepath=None):
         try:
             custom_img_dir = None
             zip_filename = None
             
-            if is_pdf and uploaded_pdf_path:
+            if pdf_filepath and os.path.exists(pdf_filepath):
                 pdf_img_dir = os.path.join("extracted_images", f"pdf_{t_id}")
-                scraped_images, scraped_text = extract_from_pdf(uploaded_pdf_path, pdf_img_dir)
+                scraped_images, scraped_text = extract_from_pdf(pdf_filepath, pdf_img_dir)
                 custom_img_dir = pdf_img_dir
                 
                 # Build ZIP file containing extracted images
@@ -74,11 +74,11 @@ def process():
                     create_images_zip(scraped_images, zip_filename)
                     
                 # Step 2: Use direct Python PDF parser for 100% complete step extraction
-                parsed_plan = parse_pdf_directly(uploaded_pdf_path)
+                parsed_plan = parse_pdf_directly(pdf_filepath)
                 json_output = json.dumps(parsed_plan, indent=2)
             else:
                 # URL Scraping Mode
-                scraped_images, scraped_text = scrape_images_from_url(target_url)
+                scraped_images, scraped_text = scrape_images_from_url(url)
                 if not scraped_text:
                     tasks[t_id] = {'status': 'error', 'error': 'Could not extract text from the provided URL.'}
                     return
@@ -118,14 +118,11 @@ def process():
             traceback.print_exc()
             tasks[t_id] = {'status': 'error', 'error': str(e)}
 
-    # Check request type
-    if pdf_file and pdf_file.filename:
-        filename = secure_filename(pdf_file.filename)
-        saved_pdf_path = os.path.join(UPLOAD_FOLDER, f"{task_id}_{filename}")
-        pdf_file.save(saved_pdf_path)
-        threading.Thread(target=run_task, kwargs={'t_id': task_id, 'pdf_filepath': saved_pdf_path}).start()
+    # Launch background thread with matching keyword arguments
+    if mode == 'pdf' and pdf_filepath:
+        threading.Thread(target=run_task, kwargs={'t_id': task_id, 'pdf_filepath': pdf_filepath}).start()
     else:
-        threading.Thread(target=run_task, kwargs={'t_id': task_id, 'url': project_url}).start()
+        threading.Thread(target=run_task, kwargs={'t_id': task_id, 'url': url}).start()
         
     return jsonify({'task_id': task_id})
 
