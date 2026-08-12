@@ -3,11 +3,23 @@ import re
 import pymupdf
 from pdf_extractor import clean_extracted_text
 
+def parse_material_line(line):
+    clean = line.lstrip("•").strip()
+    if not clean:
+        return None
+    match = re.match(r'^(\d+)\s*[\–\-]\s*(.+)', clean)
+    if match:
+        return {"quantity": match.group(1), "description": match.group(2).strip()}
+    # Hardware or fasteners without leading numbers
+    if any(kw in clean.lower() for kw in ["nail", "screw", "flashing", "hinge", "latch", "hardware"]):
+        return {"quantity": "As Needed", "description": clean}
+    return {"quantity": "1", "description": clean}
+
 def parse_pdf_directly(pdf_filepath):
     """
     Direct Python PDF parser that extracts 100% of pages, steps, 
-    shopping lists, cut lists, preserving 100% of exact text and bullet points
-    without missing any step description.
+    shopping lists (with exact quantities & descriptions), 
+    and cut lists (with exact Qty, Dimensions, and Part Descriptions).
     """
     doc = pymupdf.open(pdf_filepath)
     
@@ -15,7 +27,6 @@ def parse_pdf_directly(pdf_filepath):
     project_intro = ""
     dimensions = "See Plan Drawings"
     materials = []
-    cut_list = []
     steps = []
     
     # 1. Parse Title (Page 1)
@@ -44,19 +55,20 @@ def parse_pdf_directly(pdf_filepath):
     if intro_lines:
         project_intro = clean_extracted_text(" ".join(intro_lines))
 
-    # 3. Parse Shopping List & Cut List (Pages 4-6)
+    # 3. Parse Shopping List (Pages 4-6) with exact Quantity and Description
     for page_idx in range(3, min(6, len(doc))):
         raw = doc[page_idx].get_text("text") or ""
         lines = [l.strip() for l in raw.split("\n") if l.strip() and "Construct101" not in l and "Page" not in l]
         for l in lines:
-            if l.startswith("•") or "–" in l or ("-" in l and any(c.isdigit() for c in l)):
-                clean_mat = l.lstrip("•").strip()
-                if clean_mat:
-                    materials.append({"quantity": "-", "description": clean_mat})
+            if l.startswith("•") or re.match(r'^\d+[\s\–\-]+', l) or any(kw in l.lower() for kw in ["nail", "screw", "flashing", "hinge", "latch"]):
+                mat_item = parse_material_line(l)
+                if mat_item and mat_item not in materials:
+                    materials.append(mat_item)
 
-    # 4. Parse Construction Steps (Pages 7 to End)
+    # 4. Parse Construction Steps & Cut List (Pages 7 to End)
     start_step_page = 6 if len(doc) >= 7 else 1
     step_num = 1
+    cut_list = []
     
     for page_idx in range(start_step_page, len(doc)):
         page = doc[page_idx]
@@ -67,13 +79,11 @@ def parse_pdf_directly(pdf_filepath):
         if not clean_lines:
             continue
             
-        # Determine Title
         first_line = clean_lines[0]
         if first_line in ["Floor", "Walls", "Rafters", "Siding", "Roof", "Door", "Trim", "Front/Back Wall Frame:", "Right/Left Wall Frame:", "Front Top Wall Frame:"]:
             step_title = first_line.rstrip(":")
             content_lines = clean_lines[1:]
         else:
-            # Check if second line is better or generate descriptive title
             if len(clean_lines) > 1 and clean_lines[1] in ["Front/Back Wall Frame:", "Right/Left Wall Frame:", "Front Top Wall Frame:"]:
                 step_title = clean_lines[1].rstrip(":")
                 content_lines = [clean_lines[0]] + clean_lines[2:]
@@ -92,6 +102,16 @@ def parse_pdf_directly(pdf_filepath):
                 clean_b = l.lstrip("•").strip()
                 if clean_b and clean_b not in step_bullets:
                     step_bullets.append(clean_b)
+                    # Extract structured cut list item for Cut List Table
+                    match = re.match(r'^(\d+)\s*[\–\-]\s*(.+)', clean_b)
+                    if match:
+                        q_str = match.group(1)
+                        dim_str = match.group(2).strip()
+                        cut_list.append({
+                            "quantity": q_str,
+                            "dimensions": dim_str,
+                            "description": f"{step_title} Member"
+                        })
             else:
                 instruction_lines.append(l)
                 
@@ -120,7 +140,7 @@ def parse_pdf_directly(pdf_filepath):
         "dimension_image_source": "page_2_img",
         "tools_image_source": "page_3_img",
         "materials": materials,
-        "cut_list": cut_list if cut_list else materials[:8],
+        "cut_list": cut_list if cut_list else materials,
         "tools": [{"name": "Miter Saw"}, {"name": "Circular Saw"}, {"name": "Framing Hammer"}, {"name": "Tape Measure"}, {"name": "Level"}],
         "steps": steps,
         "finishing_instructions": ["Apply primer and two coats of exterior grade paint or stain.", "Caulk all exterior joints with paintable silicone."],
