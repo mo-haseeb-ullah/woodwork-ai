@@ -10,7 +10,6 @@ old_getaddrinfo = socket.getaddrinfo
 def new_getaddrinfo(*args, **kwargs):
     try:
         responses = old_getaddrinfo(*args, **kwargs)
-        # Try to filter for IPv4
         ipv4_res = [res for res in responses if res[0] == socket.AF_INET]
         return ipv4_res if ipv4_res else responses
     except Exception:
@@ -49,7 +48,6 @@ def process_with_ai(scraped_text, api_key=None, scraped_images=None):
     scraped_uris = []
     for img_path in scraped_images[:45]:
         base_name = os.path.splitext(os.path.basename(img_path))[0]
-        print(f"Uploading {base_name}...")
         mime = "image/jpeg"
         if img_path.lower().endswith(".png"):
             mime = "image/png"
@@ -96,8 +94,7 @@ def process_with_ai(scraped_text, api_key=None, scraped_images=None):
     }
     """
 
-    print("Sending data to Gemini API...")
-    models_to_try = ["gemini-2.5-flash", "gemini-1.5-flash"]
+    models_to_try = ["gemini-2.0-flash", "gemini-1.5-flash", "gemini-2.5-flash", "gemini-1.5-pro"]
     
     parts = [
         {"text": "--- START EXTRACTED TEXT ---\n" + scraped_text + "\n--- END EXTRACTED TEXT ---\n"}
@@ -118,28 +115,34 @@ def process_with_ai(scraped_text, api_key=None, scraped_images=None):
         }
     }
     
-    max_retries = 3
+    max_retries = 4
     def make_gemini_request(payload_data):
+        last_err = None
         for model in models_to_try:
             curr_url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}"
             for attempt in range(max_retries):
-                gen_response = requests.post(curr_url, headers={"Content-Type": "application/json"}, json=payload_data, timeout=(10, 60))
-                
-                if gen_response.status_code == 429:
-                    print(f"Rate limited (429). Retrying in 10 seconds... (Attempt {attempt+1}/{max_retries})")
-                    time.sleep(10)
-                    continue
+                try:
+                    gen_response = requests.post(curr_url, headers={"Content-Type": "application/json"}, json=payload_data, timeout=(10, 60))
                     
-                if gen_response.status_code == 404:
-                    print(f"Model {model} returned 404, trying fallback model...")
-                    break
+                    if gen_response.status_code in [503, 500, 502, 504, 429]:
+                        wait_sec = 3 * (attempt + 1)
+                        print(f"Gemini API returned {gen_response.status_code} ({model}). Retrying in {wait_sec}s... (Attempt {attempt+1}/{max_retries})")
+                        time.sleep(wait_sec)
+                        continue
+                        
+                    if gen_response.status_code in [404, 400] and attempt == 0:
+                        print(f"Model {model} returned {gen_response.status_code}, trying next model fallback...")
+                        break
+                        
+                    if not gen_response.ok:
+                        print("Gemini API Error:", gen_response.text)
+                    gen_response.raise_for_status()
+                    return gen_response.json()
+                except Exception as e:
+                    last_err = e
+                    time.sleep(2)
                     
-                if not gen_response.ok:
-                    print("Gemini API Error:", gen_response.text)
-                gen_response.raise_for_status()
-                return gen_response.json()
-        raise Exception("Failed to call Gemini API across all model endpoints")
-
+        raise Exception(f"Google Gemini API is temporarily busy (503 Service Unavailable). Please click 'Generate Blueprint' again in a few seconds. ({last_err})")
 
     print("Pass 1: Extracting data...")
     result1 = make_gemini_request(payload)
@@ -158,7 +161,6 @@ def process_with_ai(scraped_text, api_key=None, scraped_images=None):
     Return the final, perfectly corrected JSON object only.
     """
     
-    # Send text prompt for verification (without duplicating image payloads)
     verify_payload = {
         "contents": [{"parts": [{"text": verify_prompt}]}],
         "generationConfig": {
