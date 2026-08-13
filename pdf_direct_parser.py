@@ -18,7 +18,7 @@ def parse_pdf_directly(pdf_filepath):
     """
     Universal Python PDF parser that handles all woodworking PDF plans
     (Chicken Coop Run 10x8, Large Lean-to Shed 10x12, Door/Window guides)
-    without missing pages, using header boilerplate as titles, or losing text.
+    ensuring clean step titles and 100% instruction sentences in description paragraphs.
     """
     doc = pymupdf.open(pdf_filepath)
     
@@ -28,6 +28,17 @@ def parse_pdf_directly(pdf_filepath):
     materials = []
     cut_list = []
     steps = []
+    
+    known_headings = [
+        "floor", "front wall", "back wall", "right/left wall", "roof", 
+        "wire mesh", "trim", "door", "roof deck", "rafters", "siding",
+        "shed window framing", "shed single door", "shed double door",
+        "front/back wall frame", "right/left wall frame", "front top wall frame",
+        "door and window framing", "front/back wall frame ends", "raise and secure wall frames",
+        "rafter cut details", "rafter installation", "top wall studs & overhang blocking",
+        "siding installation", "roof purlins", "purlin blocking", "metal corrugated roofing panels",
+        "door installation", "corner & window trim"
+    ]
     
     # 1. Parse Project Title (Pages 1-2)
     for page_idx in range(min(2, len(doc))):
@@ -46,7 +57,6 @@ def parse_pdf_directly(pdf_filepath):
         if project_name != "Woodworking Plan":
             break
 
-    # Clean up project title if trailing "- Page 1"
     project_name = re.sub(r'[\–\-]\s*Page \d+.*', '', project_name, flags=re.I).strip()
 
     # 2. Parse Overview & Dimensions (Pages 1-3)
@@ -71,6 +81,7 @@ def parse_pdf_directly(pdf_filepath):
     # 3. Dynamic Page Processing (Pages 2 to End)
     start_step_page = 1
     step_num = 1
+    current_section = "Construction"
     
     for page_idx in range(start_step_page, len(doc)):
         page = doc[page_idx]
@@ -78,7 +89,6 @@ def parse_pdf_directly(pdf_filepath):
         
         raw_lines = [l.strip() for l in raw.split("\n") if l.strip()]
         
-        # Filter boilerplate lines (ArtisanBlueprint, Construct101, Legal, Page numbers)
         clean_lines = []
         for l in raw_lines:
             if "Construct101" in l or "Legal:" in l or "Disclaimer:" in l:
@@ -113,46 +123,36 @@ def parse_pdf_directly(pdf_filepath):
                 if mat_item and mat_item not in materials:
                     materials.append(mat_item)
                     
-        # Determine Step Title
+        # Determine Step Title vs Instruction Sentences
         first_line = clean_lines[0]
+        step_title = None
+        content_lines = clean_lines
         
         # Check for explicit STEP X: Title format
         step_match = re.match(r'^STEP\s*\d+\s*:\s*(.+)', first_line, re.I)
         if step_match:
-            step_title = step_match.group(1).strip()
-            content_lines = clean_lines[1:]
-        elif first_line.lower() in ["floor", "front wall", "back wall", "right/left wall", "roof", "wire mesh", "trim", "door", "roof deck", "rafters", "siding", "front/back wall frame:", "right/left wall frame:", "front top wall frame:"]:
-            step_title = first_line.rstrip(":")
-            content_lines = clean_lines[1:]
-        elif len(clean_lines) > 1 and clean_lines[1].lower() in ["floor", "front wall", "back wall", "right/left wall", "roof", "wire mesh", "trim", "door", "roof deck", "rafters", "siding"]:
-            step_title = clean_lines[1].rstrip(":")
-            content_lines = [clean_lines[0]] + clean_lines[2:]
-        elif any(kw in first_line.upper() for kw in ["SHED", "FRAMING", "FLOOR", "WALLS", "RAFTERS", "SIDING", "ROOF", "DOOR", "TRIM", "WINDOW"]):
-            step_title = first_line.rstrip(":")
-            content_lines = clean_lines[1:]
-        else:
-            # Title-less instruction page -> infer clean title
-            if "rafter" in first_line.lower():
-                step_title = "Rafter Assembly" if "twelve" in first_line.lower() or "twelve 2x4" in first_line.lower() else "Rafter Bevel Trim"
-            elif "mesh" in first_line.lower():
-                step_title = "Door Wire Mesh & Trim"
-            elif "door" in first_line.lower() and "install" in first_line.lower():
-                step_title = "Door Installation"
-            elif "shingle" in first_line.lower() or "felt" in first_line.lower():
-                step_title = "Roofing Felt & Shingles"
-            else:
-                step_title = f"Step {step_num}"
-            content_lines = clean_lines
-            
-        step_title = re.sub(r'^[•\-\d\s]+', '', step_title).strip()
-        if not step_title or step_title.isdigit() or step_title.startswith("Step "):
-            # If step title is "Step 2", try to find a sub-heading or fallback
-            sub_title = clean_lines[0]
-            if len(sub_title) < 40 and not sub_title.startswith("Measure") and not sub_title.startswith("Cut") and not sub_title.startswith("Install"):
-                step_title = sub_title.rstrip(":")
-            else:
-                step_title = f"Step {step_num}"
+            candidate_title = step_match.group(1).strip()
+            # If candidate_title is short and not an instruction, use it
+            if len(candidate_title) < 40 and not any(kw in candidate_title.lower() for kw in ["cut ", "install ", "measure ", "build ", "raise "]):
+                step_title = candidate_title
+                content_lines = clean_lines[1:]
                 
+        if not step_title:
+            clean_header = first_line.rstrip(":")
+            if any(h in clean_header.lower() for h in known_headings) and len(clean_header) < 40 and not any(kw in clean_header.lower() for kw in ["cut ", "install ", "measure ", "build ", "raise "]):
+                step_title = clean_header
+                content_lines = clean_lines[1:]
+            elif len(clean_lines) > 1:
+                second_header = clean_lines[1].rstrip(":")
+                if any(h in second_header.lower() for h in known_headings) and len(second_header) < 40:
+                    step_title = second_header
+                    content_lines = [clean_lines[0]] + clean_lines[2:]
+                    
+        if step_title:
+            current_section = step_title
+        else:
+            step_title = f"Step {step_num}"
+            
         step_bullets = []
         instruction_lines = []
         
