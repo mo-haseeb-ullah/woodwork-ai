@@ -187,12 +187,7 @@ def generate_premium_pdf(plan_json_str, page_to_images=None, docx_images_dict=No
     diff_run.font.color.rgb = RGBColor(100, 100, 100)
     p_diff.alignment = WD_ALIGN_PARAGRAPH.CENTER
 
-    doc.add_paragraph() # Spacer
-    
-    # Hero Image on Cover (fallback to scraped_0 if omitted)
-    if not embed_image_if_exists(plan_data.get("hero_image_source"), target_width_inches=6.5):
-        embed_image_if_exists("scraped_0", target_width_inches=6.5)
-
+    # Cover page finishes with title, difficulty, and dimensions (no default/stock hero images)
     doc.add_page_break()
 
     # ==========================================
@@ -217,8 +212,8 @@ def generate_premium_pdf(plan_json_str, page_to_images=None, docx_images_dict=No
             p_dim.add_run("Finished Dimensions: ").bold = True
             p_dim.add_run(plan_data['finished_dimensions'])
 
-        if not embed_image_if_exists(plan_data.get("dimension_image_source")):
-            embed_image_if_exists("scraped_1")
+        if plan_data.get("dimension_image_source"):
+            embed_image_if_exists(plan_data.get("dimension_image_source"))
         doc.add_paragraph()
     
     # ==========================================
@@ -330,13 +325,7 @@ def generate_premium_pdf(plan_json_str, page_to_images=None, docx_images_dict=No
                 if embed_image_if_exists(candidate, target_width_inches=6.0):
                     embedded_any = True
                     
-            # GUARANTEED STRICT STEP DIAGRAM FALLBACK:
-            # If no image was embedded for this step, automatically embed its corresponding page diagram
-            if not embedded_any:
-                fallback_label = f"scraped_{step_idx + 3}"
-                if not embed_image_if_exists(fallback_label, target_width_inches=6.0):
-                    fallback_label2 = f"scraped_{step_idx + 2}"
-                    embed_image_if_exists(fallback_label2, target_width_inches=6.0)
+
             
             # Bullet materials list (if present)
             step_mats = step.get("step_materials")
