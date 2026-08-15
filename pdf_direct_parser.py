@@ -3,28 +3,16 @@ import re
 import pymupdf
 from pdf_extractor import clean_extracted_text
 
-def parse_material_line(line):
-    clean = line.lstrip("•").strip()
-    if not clean:
-        return None
-    match = re.match(r'^(\d+)\s*[\–\-]\s*(.+)', clean)
-    if match:
-        return {"quantity": match.group(1), "description": match.group(2).strip()}
-    if any(kw in clean.lower() for kw in ["nail", "screw", "flashing", "hinge", "latch", "hardware", "staple", "shingle", "felt", "drip edge", "tack", "deck screws"]):
-        return {"quantity": "As Needed", "description": clean}
-    return {"quantity": "1", "description": clean}
-
 def parse_pdf_directly(pdf_filepath):
     """
-    Universal Direct PDF Parser:
-    - Picture on Page 1 is ALWAYS the Cover Hero Picture (page_1_img).
-    - Removes complex step logic and pastes text line-by-line page-by-page.
-    - Page N picture (page_{N}_img) is strictly paired with Page N line-by-line text.
-    - Differentiates Shopping List vs Cut List for overview tables.
+    Generic Direct PDF Parser (Skipping Shopping List & Cut List Tables):
+    - Cover Page: Project Title + Hero Picture (page_1_img) from Page 1.
+    - Pages 2 to End: Direct line-by-line page paste with page picture (page_{page_num}_img) and page text lines.
+    - Shopping List and Cut List tables are completely skipped as requested.
     """
     doc = pymupdf.open(pdf_filepath)
     
-    # 1. Page 1 Image is ALWAYS Hero Image
+    # 1. Cover Page Hero Picture (Page 1 Image)
     hero_image = "page_1_img"
     
     # 2. Extract Project Title from Page 1
@@ -56,46 +44,11 @@ def parse_pdf_directly(pdf_filepath):
                     if ("x" in l.lower() or "×" in l or "'" in l or '"' in l) and (dimensions == "See Plan Drawings"):
                         if any(c.isdigit() for c in l):
                             dimensions = l
-                            
-    # 4. Shopping List & Cut List overview parsing
+
+    # 4. Direct Page-by-Page Line-by-Line Paste (Pages 2 to End)
+    # Shopping List and Cut List tables are completely SKIPPED as requested.
     materials = []
     cut_list = []
-    current_mode = None
-    
-    for p_idx in range(1, min(7, len(doc))):
-        raw = doc[p_idx].get_text("text") or ""
-        cleaned = clean_extracted_text(raw)
-        lines = [l.strip() for l in cleaned.split("\n") if l.strip()]
-        
-        for l in lines:
-            l_clean = l.lower().strip()
-            if re.match(r'^(shopping list|material list|materials|.*shed plans[\-\s]*material list)$', l_clean):
-                current_mode = "shopping"
-                continue
-            elif re.match(r'^(cutting list|cut list|cut list \+ materials)$', l_clean):
-                current_mode = "cutting"
-                continue
-            elif l_clean in ["overview", "legal:", "disclaimer:"]:
-                current_mode = None
-                continue
-                
-            if current_mode is None:
-                continue
-                
-            if l.startswith("•") or re.match(r'^\d+[\s\–\-]+', l) or any(kw in l.lower() for kw in ["screw", "nail", "shingle", "felt", "drip edge", "roof tacks", "roofing staples"]):
-                clean_l = l.lstrip("•").strip()
-                if current_mode == "shopping":
-                    item = parse_material_line(clean_l)
-                    if item and item not in materials:
-                        materials.append(item)
-                elif current_mode == "cutting":
-                    match = re.match(r'^(\d+)\s*[\–\-]\s*(.+)', clean_l)
-                    if match:
-                        item = {"quantity": match.group(1), "dimensions": match.group(2).strip(), "description": "Cut Member"}
-                        if item not in cut_list:
-                            cut_list.append(item)
-
-    # 5. Direct Page-by-Page Paste (Pages 2 to End)
     steps = []
     step_num = 1
     
@@ -111,7 +64,7 @@ def parse_pdf_directly(pdf_filepath):
             
         page_text_lower = cleaned.lower()
         
-        # Skip pure legal disclaimers
+        # Filter out pure legal disclaimers
         if any(kw in page_text_lower for kw in ["legal:", "disclaimer:", "all rights reserved", "isbn-"]):
             lines = [l for l in lines if not any(kw in l.lower() for kw in ["legal:", "disclaimer:", "all rights reserved", "isbn-", "reprinting", "prohibited", "prosecuted"])]
             
@@ -123,7 +76,7 @@ def parse_pdf_directly(pdf_filepath):
         
         steps.append({
             "step_number": step_num,
-            "title": f"STEP {step_num}",
+            "title": f"PAGE {page_num}",
             "page_number": page_num,
             "exact_description": exact_desc,
             "image_sources": [img_label]
@@ -136,12 +89,12 @@ def parse_pdf_directly(pdf_filepath):
         "difficulty_level": "Intermediate DIY",
         "finished_dimensions": dimensions,
         "hero_image_source": hero_image, # Page 1 Image is ALWAYS Hero Image
-        "dimension_image_source": "page_2_img",
+        "dimension_image_source": None,
         "tools_image_source": None,
-        "materials": materials,
-        "cut_list": cut_list,
-        "tools": [{"name": "Miter Saw"}, {"name": "Circular Saw"}, {"name": "Framing Hammer"}, {"name": "Tape Measure"}, {"name": "Level"}],
+        "materials": [], # SKIPPED
+        "cut_list": [],  # SKIPPED
+        "tools": [],
         "steps": steps,
-        "finishing_instructions": ["Apply primer and two coats of exterior grade paint or stain.", "Caulk all exterior joints with paintable silicone."],
+        "finishing_instructions": [],
         "missing_images": []
     }
