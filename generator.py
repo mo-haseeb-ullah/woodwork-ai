@@ -109,21 +109,24 @@ def generate_premium_pdf(plan_json_str, page_to_images=None, docx_images_dict=No
         
         if level == 1:
             # Hero Title: Copper
-            run.font.size = Pt(28)
+            run.font.size = Pt(24)
             run.font.color.rgb = BRAND_COPPER
             p.alignment = WD_ALIGN_PARAGRAPH.CENTER
             insert_hr(p, 'C68A6B')
         else:
-            # Section Headings: Dark Brown
-            run.font.size = Pt(16)
-            run.font.color.rgb = BRAND_DARK
-            insert_hr(p, '1A1110')
+            # Beautiful Copper Headings
+            run.font.size = Pt(13)
+            run.font.color.rgb = BRAND_COPPER
+            insert_hr(p, 'C68A6B')
             
         if center:
             p.alignment = WD_ALIGN_PARAGRAPH.CENTER
 
     def add_bullet(text):
-        doc.add_paragraph(text, style='List Bullet')
+        p = doc.add_paragraph(style='List Bullet')
+        run = p.add_run(text)
+        run.font.size = Pt(10.0)
+        p.paragraph_format.space_after = Pt(2)
 
     def embed_image_if_exists(image_source, target_width_inches=6.0, center=True):
         if not image_source:
@@ -327,8 +330,10 @@ def generate_premium_pdf(plan_json_str, page_to_images=None, docx_images_dict=No
         elif re.match(r'^\d+[\s\–\-]+', line_clean) and any(kw in line_clean.lower() for kw in ["2x", "4x", "1x", "plywood", "sheet", "screw", "nail", "shingle", "felt"]):
             add_bullet(line_clean)
         else:
-            p = doc.add_paragraph(line_clean)
-            p.paragraph_format.space_after = Pt(4)
+            p = doc.add_paragraph()
+            run = p.add_run(line_clean)
+            run.font.size = Pt(10.0)
+            p.paragraph_format.space_after = Pt(3)
 
     # ==========================================
     # 7. SPATIAL PAGE-BY-PAGE RENDERING
