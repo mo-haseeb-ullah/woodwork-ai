@@ -187,7 +187,10 @@ def generate_premium_pdf(plan_json_str, page_to_images=None, docx_images_dict=No
     diff_run.font.color.rgb = RGBColor(100, 100, 100)
     p_diff.alignment = WD_ALIGN_PARAGRAPH.CENTER
 
-    # Cover page finishes with title, difficulty, and dimensions (no default/stock hero images)
+    doc.add_paragraph() # Spacer
+    if plan_data.get("hero_image_source"):
+        embed_image_if_exists(plan_data.get("hero_image_source"), target_width_inches=6.5)
+
     doc.add_page_break()
 
     # ==========================================

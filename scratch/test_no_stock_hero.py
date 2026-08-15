@@ -7,7 +7,7 @@ from pdf_direct_parser import parse_pdf_directly
 from pdf_extractor import extract_from_pdf
 from generator import generate_premium_pdf
 
-pdf_path = r"D:\Plans\10x10-Barn-Shed-Plans.pdf"
+pdf_path = r"D:\ETSY\10x10 Barn Shed Plans.pdf"
 output_dir = r"D:\woodworking_ai\scratch\test_clean_docx"
 os.makedirs(output_dir, exist_ok=True)
 
