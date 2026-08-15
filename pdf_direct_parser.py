@@ -10,34 +10,17 @@ def parse_material_line(line):
     match = re.match(r'^(\d+)\s*[\–\-]\s*(.+)', clean)
     if match:
         return {"quantity": match.group(1), "description": match.group(2).strip()}
-    if any(kw in clean.lower() for kw in ["nail", "screw", "flashing", "hinge", "latch", "hardware", "staple", "shingle", "felt", "drip edge"]):
+    if any(kw in clean.lower() for kw in ["nail", "screw", "flashing", "hinge", "latch", "hardware", "staple", "shingle", "felt", "drip edge", "deck screws"]):
         return {"quantity": "As Needed", "description": clean}
     return {"quantity": "1", "description": clean}
 
-def is_shopping_line(line):
-    l = line.lower()
-    if any(kw in l for kw in ["nail", "screw", "shingle", "felt", "tack", "staple", "edge", "flashing", "hinge", "latch", "hardware"]):
-        return True
-    if re.search(r'[\–\-]\s*(8′|10′|12′|14′|16′|8\'|10\'|12\'|14\'|16\')\s*$', line) and not re.search(r'\d+\s*(″|in|inch|1/2|1/4|3/4|3/8|5/8|7/8|7/16)', line):
-        return True
-    return False
-
-def is_cut_line(line):
-    l = line.lower()
-    if any(kw in l for kw in ["cut to size", "cut member"]):
-        return True
-    if re.search(r'\d+\s*(″|in|inch|1/2|1/4|3/4|3/8|5/8|7/8|7/16)', line):
-        return True
-    if re.search(r'[\–\-]\s*\d+[\′\']\s*\d+', line):
-        return True
-    return False
-
 def parse_pdf_directly(pdf_filepath):
     """
-    Universal Python PDF parser that strictly differentiates between:
-    - SHOPPING LIST: Store purchase list (stock lumber 8', 10', 12', nails, screws, shingles, drip edge)
-    - CUTTING LIST: Exact cut pieces with specific measured dimensions (3' 9", 3' 8 1/4", 4'x4')
-    And formats step headings to write ONLY the step number (STEP 1, STEP 2, etc.).
+    Advanced Python PDF parser trained to handle:
+    - Multi-category Shopping Lists & Cutting Lists (TABLE, BENCH, FRAME, ROOF)
+    - Part letter tags (A), (B), (C), (D) mapped directly to Part Description (Part A, Part B, Part C)
+    - Strict table isolation (Shopping List vs Cutting List)
+    - Clean STEP N step headings with zero extra text
     """
     doc = pymupdf.open(pdf_filepath)
     
@@ -86,27 +69,88 @@ def parse_pdf_directly(pdf_filepath):
     if intro_lines:
         project_intro = clean_extracted_text(" ".join(intro_lines[:8]))
 
-    # 3. Parse Material List & Cutting List (Pages 3 to 6)
-    for page_idx in range(2, min(6, len(doc))):
+    # 3. Parse Material List & Cutting List with State Machine (Pages 2 to 6)
+    current_mode = None  # "shopping" or "cutting"
+    current_category = ""  # "TABLE", "BENCH", "FRAME"
+    
+    for page_idx in range(1, min(6, len(doc))):
         raw = doc[page_idx].get_text("text") or ""
         lines = [l.strip() for l in raw.split("\n") if l.strip() and "Construct101" not in l and not re.search(r'Page \d+', l, re.I)]
+        
         for l in lines:
-            if l.startswith("•") or re.match(r'^\d+[\s\–\-]+', l) or any(kw in l.lower() for kw in ["nail", "screw", "shingle", "felt", "drip edge", "flashing"]):
+            l_lower = l.lower()
+            
+            # Detect main section headers
+            if "shopping list" in l_lower or "material list" in l_lower:
+                current_mode = "shopping"
+                current_category = ""
+                continue
+            elif "cutting list" in l_lower or "cut list" in l_lower:
+                current_mode = "cutting"
+                current_category = ""
+                continue
+            elif "overview" in l_lower:
+                current_mode = None
+                continue
+                
+            # Detect sub-categories (e.g. TABLE, BENCH, FRAME, ROOF)
+            if l.isupper() and len(l) < 25 and not re.match(r'^\d+', l) and l not in ["SHOPPING LIST", "CUTTING LIST", "MATERIAL LIST"]:
+                current_category = l
+                continue
+                
+            # Detect Part Letter Tags e.g. (A), (B), (C), (D)
+            part_letter = None
+            letter_match = re.match(r'^\(([A-Z])\)\s*(.+)', l)
+            if letter_match:
+                part_letter = f"Part {letter_match.group(1)}"
+                l = letter_match.group(2).strip()
+                
+            if l.startswith("•") or re.match(r'^\d+[\s\–\-]+', l) or any(kw in l.lower() for kw in ["nail", "screw", "shingle", "felt", "drip edge", "flashing", "deck screws"]):
                 clean_l = l.lstrip("•").strip()
-                if is_shopping_line(clean_l):
+                
+                if current_mode == "shopping":
                     item = parse_material_line(clean_l)
-                    if item and item not in materials:
-                        materials.append(item)
-                elif is_cut_line(clean_l):
+                    if item:
+                        if current_category:
+                            item["description"] = f"{current_category}: {item['description']}"
+                        if item not in materials:
+                            materials.append(item)
+                elif current_mode == "cutting":
                     match = re.match(r'^(\d+)\s*[\–\-]\s*(.+)', clean_l)
                     if match:
-                        item = {
-                            "quantity": match.group(1),
-                            "dimensions": match.group(2).strip(),
-                            "description": "Cut Member"
+                        qty = match.group(1)
+                        dims = match.group(2).strip()
+                        part_desc = part_letter if part_letter else (f"{current_category} Member" if current_category else "Cut Member")
+                        c_item = {
+                            "quantity": qty,
+                            "dimensions": dims,
+                            "description": part_desc
                         }
-                        if item not in cut_list:
-                            cut_list.append(item)
+                        if c_item not in cut_list:
+                            cut_list.append(c_item)
+
+    # Fallback scan for documents without explicit "Shopping List" / "Cutting List" headings
+    if not materials and not cut_list:
+        for page_idx in range(2, min(6, len(doc))):
+            raw = doc[page_idx].get_text("text") or ""
+            lines = [l.strip() for l in raw.split("\n") if l.strip() and "Construct101" not in l and not re.search(r'Page \d+', l, re.I)]
+            for l in lines:
+                if l.startswith("•") or re.match(r'^\d+[\s\–\-]+', l):
+                    clean_l = l.lstrip("•").strip()
+                    if any(kw in clean_l.lower() for kw in ["nail", "screw", "shingle", "felt", "flashing", "deck screws"]):
+                        item = parse_material_line(clean_l)
+                        if item and item not in materials:
+                            materials.append(item)
+                    else:
+                        match = re.match(r'^(\d+)\s*[\–\-]\s*(.+)', clean_l)
+                        if match:
+                            c_item = {
+                                "quantity": match.group(1),
+                                "dimensions": match.group(2).strip(),
+                                "description": "Cut Member"
+                            }
+                            if c_item not in cut_list:
+                                cut_list.append(c_item)
 
     # 4. Dynamic Step Processing (Pages 4 to End)
     start_step_page = 3
@@ -140,6 +184,13 @@ def parse_pdf_directly(pdf_filepath):
         for l in clean_lines:
             if l.startswith("STEP "):
                 continue
+                
+            part_letter = None
+            letter_match = re.match(r'^\(([A-Z])\)\s*(.+)', l)
+            if letter_match:
+                part_letter = f"Part {letter_match.group(1)}"
+                l = letter_match.group(2).strip()
+                
             if l.startswith("•") or (re.match(r'^\d+[\s\–\-]+', l) and ("cut" in l.lower() or "size" in l.lower() or "sheet" in l.lower() or "plywood" in l.lower() or "treated" in l.lower() or re.search(r'\d+[\′\″\']', l))):
                 clean_b = l.lstrip("•").strip()
                 if clean_b and clean_b not in step_bullets:
@@ -149,7 +200,7 @@ def parse_pdf_directly(pdf_filepath):
                         c_item = {
                             "quantity": match.group(1),
                             "dimensions": match.group(2).strip(),
-                            "description": f"Step {step_num} Member"
+                            "description": part_letter if part_letter else f"Step {step_num} Member"
                         }
                         if c_item not in cut_list:
                             cut_list.append(c_item)
