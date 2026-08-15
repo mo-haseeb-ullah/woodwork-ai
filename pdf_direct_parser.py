@@ -5,10 +5,12 @@ from pdf_extractor import clean_extracted_text
 
 def parse_pdf_directly(pdf_filepath):
     """
-    Generic Direct PDF Parser (Skipping Shopping List & Cut List Tables):
-    - Cover Page: Project Title + Hero Picture (page_1_img) from Page 1.
-    - Pages 2 to End: Direct line-by-line page paste with page picture (page_{page_num}_img) and page text lines.
-    - Shopping List and Cut List tables are completely skipped as requested.
+    Universal Spatial PDF Parser:
+    - Cover Page: Project Title + Hero Picture (page_1_img).
+    - Page Content: Checks vertical y-position of text blocks relative to the image on each page.
+    - Text ABOVE image on PDF -> Rendered ABOVE image in Word file.
+    - Text BELOW image on PDF -> Rendered BELOW image in Word file.
+    - Highlights 'Material List', 'Shopping List', 'Cutting List', 'Cut List', and section titles as BOLD Headings.
     """
     doc = pymupdf.open(pdf_filepath)
     
@@ -30,69 +32,68 @@ def parse_pdf_directly(pdf_filepath):
 
     project_name = re.sub(r'[\–\-]\s*Page \d+.*', '', project_name, flags=re.I).strip()
 
-    # 3. Overview Intro & Finished Dimensions
-    intro_lines = []
-    dimensions = "See Plan Drawings"
-    for p_idx in range(min(3, len(doc))):
-        raw = doc[p_idx].get_text("text") or ""
-        cleaned = clean_extracted_text(raw)
-        lines = [l.strip() for l in cleaned.split("\n") if l.strip()]
-        for l in lines:
-            if l and not any(kw in l.lower() for kw in ["legal:", "disclaimer:", "copyright", "reprinting", "prohibited", "prosecuted", "isbn-", "liability"]):
-                if not any(kw in l.lower() for kw in ["overview", "material list", "shopping list", "cutting list"]):
-                    intro_lines.append(l)
-                    if ("x" in l.lower() or "×" in l or "'" in l or '"' in l) and (dimensions == "See Plan Drawings"):
-                        if any(c.isdigit() for c in l):
-                            dimensions = l
-
-    # 4. Direct Page-by-Page Line-by-Line Paste (Pages 2 to End)
-    # Shopping List and Cut List tables are completely SKIPPED as requested.
-    materials = []
-    cut_list = []
+    # 3. Spatial Page-by-Page Content Extraction (Pages 2 to End)
     steps = []
     step_num = 1
     
     for p_idx in range(1, len(doc)):
         page_num = p_idx + 1
         page = doc[p_idx]
-        raw = page.get_text("text") or ""
-        cleaned = clean_extracted_text(raw)
         
-        lines = [l.strip() for l in cleaned.split("\n") if l.strip()]
-        if not lines:
-            continue
-            
-        page_text_lower = cleaned.lower()
-        
-        # Filter out pure legal disclaimers
-        if any(kw in page_text_lower for kw in ["legal:", "disclaimer:", "all rights reserved", "isbn-"]):
-            lines = [l for l in lines if not any(kw in l.lower() for kw in ["legal:", "disclaimer:", "all rights reserved", "isbn-", "reprinting", "prohibited", "prosecuted"])]
-            
-        if not lines:
-            continue
+        # Determine diagram image vertical bounds (y0, y1)
+        img_y0 = None
+        img_info_list = page.get_image_info(xrefs=True)
+        if img_info_list:
+            main_img = max(img_info_list, key=lambda img: (img["bbox"][2]-img["bbox"][0]) * (img["bbox"][3]-img["bbox"][1]))
+            if (main_img["bbox"][2]-main_img["bbox"][0]) > 100 and (main_img["bbox"][3]-main_img["bbox"][1]) > 100:
+                img_y0 = main_img["bbox"][1]
 
-        exact_desc = "\n".join(lines)
+        blocks = page.get_text("blocks")
+        lines_above = []
+        lines_below = []
+        
+        for b in blocks:
+            if b[6] == 0: # text block
+                b_text = b[4].strip()
+                if not b_text:
+                    continue
+                b_y1 = b[3]
+                
+                cleaned_block = clean_extracted_text(b_text)
+                block_lines = [l.strip() for l in cleaned_block.split("\n") if l.strip()]
+                block_lines = [l for l in block_lines if not any(kw in l.lower() for kw in ["legal:", "disclaimer:", "all rights reserved", "isbn-", "reprinting", "prohibited", "prosecuted"])]
+                
+                if not block_lines:
+                    continue
+                    
+                if img_y0 is not None:
+                    if b_y1 <= img_y0 + 20:
+                        lines_above.extend(block_lines)
+                    else:
+                        lines_below.extend(block_lines)
+                else:
+                    lines_below.extend(block_lines)
+
         img_label = f"page_{page_num}_img"
         
         steps.append({
             "step_number": step_num,
-            "title": f"PAGE {page_num}",
             "page_number": page_num,
-            "exact_description": exact_desc,
+            "lines_above": lines_above,
+            "lines_below": lines_below,
             "image_sources": [img_label]
         })
         step_num += 1
 
     return {
         "project_name": project_name,
-        "project_intro": " ".join(intro_lines[:5]) if intro_lines else f"Complete DIY construction guide for {project_name}.",
         "difficulty_level": "Intermediate DIY",
-        "finished_dimensions": dimensions,
-        "hero_image_source": hero_image, # Page 1 Image is ALWAYS Hero Image
+        "finished_dimensions": "See Plan Drawings",
+        "hero_image_source": hero_image,
         "dimension_image_source": None,
         "tools_image_source": None,
-        "materials": [], # SKIPPED
-        "cut_list": [],  # SKIPPED
+        "materials": [],
+        "cut_list": [],
         "tools": [],
         "steps": steps,
         "finishing_instructions": [],

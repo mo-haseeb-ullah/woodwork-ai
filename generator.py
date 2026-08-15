@@ -303,41 +303,60 @@ def generate_premium_pdf(plan_json_str, page_to_images=None, docx_images_dict=No
     # ==========================================
     # 7. CONSTRUCTION STEPS
     # ==========================================
+    def is_heading_line(line_text):
+        clean_lower = line_text.lower().strip()
+        heading_keywords = [
+            "material list", "shopping list", "cutting list", "cut list", "overview",
+            "floor framing", "floor deck", "wall framing", "side wall frame", "front/back wall frame",
+            "right/left wall frame", "front top wall frame", "rafters", "roof", "siding", "trim",
+            "door", "window", "skids", "walls", "floor", "roof deck", "corner trim", "purlins", "blocking"
+        ]
+        if any(clean_lower == kw or clean_lower.startswith(kw + ":") for kw in heading_keywords):
+            return True
+        if line_text.isupper() and len(line_text) < 30 and not re.match(r'^\d+', line_text):
+            return True
+        return False
+
+    def render_custom_line(line_clean):
+        if not line_clean:
+            return
+        if is_heading_line(line_clean):
+            add_heading(line_clean, level=2)
+        elif line_clean.startswith("•"):
+            add_bullet(line_clean.lstrip("•").strip())
+        elif re.match(r'^\d+[\s\–\-]+', line_clean) and any(kw in line_clean.lower() for kw in ["2x", "4x", "1x", "plywood", "sheet", "screw", "nail", "shingle", "felt"]):
+            add_bullet(line_clean)
+        else:
+            p = doc.add_paragraph(line_clean)
+            p.paragraph_format.space_after = Pt(4)
+
+    # ==========================================
+    # 7. SPATIAL PAGE-BY-PAGE RENDERING
+    # ==========================================
     if plan_data.get("steps"):
         for step_idx, step in enumerate(plan_data.get("steps", [])):
             doc.add_page_break()
             
-
-            
-            embedded_any = False
-            img_candidates = []
-            
-            if "image_sources" in step and isinstance(step["image_sources"], list):
-                img_candidates.extend(step["image_sources"])
-            elif step.get("image_sources"):
-                img_candidates.append(step.get("image_sources"))
+            # 1. Render Text Lines ABOVE the Image
+            lines_above = step.get("lines_above", [])
+            for line in lines_above:
+                render_custom_line(line)
                 
-            if step.get("image_source"):
-                img_candidates.append(step.get("image_source"))
-            if step.get("image"):
-                img_candidates.append(step.get("image"))
-                
+            # 2. Embed Page Diagram Image
+            img_candidates = step.get("image_sources", [])
             for candidate in img_candidates:
-                if embed_image_if_exists(candidate, target_width_inches=6.0):
-                    embedded_any = True
-                    
-
+                embed_image_if_exists(candidate, target_width_inches=6.0)
+                
+            # 3. Render Text Lines BELOW the Image
+            lines_below = step.get("lines_below", [])
+            exact_desc = step.get("exact_description")
             
-            # Instructions Line-by-Line Page Render
-            desc = step.get("exact_description")
-            if desc:
-                for line in str(desc).split("\n"):
-                    line_clean = line.strip()
-                    if line_clean:
-                        if line_clean.startswith("•"):
-                            add_bullet(line_clean.lstrip("•").strip())
-                        else:
-                            doc.add_paragraph(line_clean)
+            if lines_below:
+                for line in lines_below:
+                    render_custom_line(line)
+            elif exact_desc:
+                for line in str(exact_desc).split("\n"):
+                    render_custom_line(line.strip())
 
     # ==========================================
     # 8. FINISHING INSTRUCTIONS
