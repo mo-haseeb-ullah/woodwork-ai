@@ -2,6 +2,7 @@ import os
 import re
 import pymupdf
 import zipfile
+import shutil
 
 def create_images_zip(image_paths, zip_output_path):
     with zipfile.ZipFile(zip_output_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
@@ -14,7 +15,6 @@ def create_images_zip(image_paths, zip_output_path):
 def clean_extracted_text(text):
     if not text:
         return ""
-    # Remove watermarks, website URLs, Construct101 banners, and page numbers
     text = re.sub(r'Visit\s+www\.Construct101\.com\s+for\s+more\s+DIY\s+Projects\s*(Page\s*\d+)?', '', text, flags=re.IGNORECASE)
     text = re.sub(r'www\.Construct101\.com', '', text, flags=re.IGNORECASE)
     text = re.sub(r'Construct101\.com', '', text, flags=re.IGNORECASE)
@@ -31,8 +31,8 @@ def clean_extracted_text(text):
 
 def extract_from_pdf(pdf_path, output_dir):
     """
-    Extracts raw embedded diagram images page-by-page directly from PDF.
-    Excludes logo banners, watermarks, cover ads, and small icons.
+    Extracts ALL embedded diagram images page-by-page directly from PDF.
+    Supports MULTIPLE pictures per page (page_X_img_1, page_X_img_2, etc.).
     """
     os.makedirs(output_dir, exist_ok=True)
     doc = pymupdf.open(pdf_path)
@@ -48,27 +48,37 @@ def extract_from_pdf(pdf_path, output_dir):
             text_content.append(f"--- PAGE {page_num} ---\n" + cleaned)
             
         imgs = page.get_image_info(xrefs=True)
-        # Filter out small vector icons / header banners (xref 4 or size < 180x180)
-        real_imgs = [im for im in imgs if im.get('xref') != 4 and im.get('width', 0) > 180 and im.get('height', 0) > 180]
+        # Filter out small icons or header banners
+        real_imgs = [im for im in imgs if im.get('xref') != 4 and im.get('width', 0) > 140 and im.get('height', 0) > 140]
         
         if real_imgs:
-            # Sort by area to pick the primary construction diagram for this page
-            real_imgs.sort(key=lambda x: x.get('width', 0) * x.get('height', 0), reverse=True)
-            target_xref = real_imgs[0]['xref']
-            try:
-                base_image = doc.extract_image(target_xref)
-                image_bytes = base_image["image"]
-                image_ext = base_image["ext"]
-                
-                img_filename = f"page_{page_num}_img.{image_ext}"
-                img_filepath = os.path.join(output_dir, img_filename)
-                
-                with open(img_filepath, "wb") as f:
-                    f.write(image_bytes)
+            # Sort real images vertically by top y-coordinate (bbox[1])
+            real_imgs.sort(key=lambda x: x.get('bbox', [0,0,0,0])[1])
+            
+            for sub_idx, img_info in enumerate(real_imgs):
+                sub_num = sub_idx + 1
+                target_xref = img_info['xref']
+                try:
+                    base_image = doc.extract_image(target_xref)
+                    image_bytes = base_image["image"]
+                    image_ext = base_image["ext"]
                     
-                extracted_image_paths.append(img_filepath)
-            except Exception as e:
-                print(f"Error extracting image xref {target_xref} on page {page_num}: {e}")
-                
+                    img_filename = f"page_{page_num}_img_{sub_num}.{image_ext}"
+                    img_filepath = os.path.join(output_dir, img_filename)
+                    
+                    with open(img_filepath, "wb") as f:
+                        f.write(image_bytes)
+                        
+                    extracted_image_paths.append(img_filepath)
+                    
+                    # Create alias copy for 1st image as page_N_img.ext
+                    if sub_num == 1:
+                        alias_filename = f"page_{page_num}_img.{image_ext}"
+                        alias_filepath = os.path.join(output_dir, alias_filename)
+                        shutil.copyfile(img_filepath, alias_filepath)
+                        extracted_image_paths.append(alias_filepath)
+                except Exception as e:
+                    print(f"Failed to extract image xref {target_xref} on page {page_num}: {e}")
+                    
     full_text = "\n\n".join(text_content)
     return extracted_image_paths, full_text

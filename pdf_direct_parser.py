@@ -5,11 +5,10 @@ from pdf_extractor import clean_extracted_text
 
 def parse_pdf_directly(pdf_filepath):
     """
-    Universal Spatial PDF Parser:
+    Universal Spatial PDF Parser (Multi-Image Support):
+    - Supports pages with MULTIPLE pictures (page_N_img_1, page_N_img_2, etc.).
     - Cover Page: Project Title + Hero Picture (page_1_img).
-    - Page Content: Checks vertical y-position of text blocks relative to the image on each page.
-    - Text ABOVE image on PDF -> Rendered ABOVE image in Word file.
-    - Text BELOW image on PDF -> Rendered BELOW image in Word file.
+    - Spatial Placement: Places text above/below images in top-to-bottom vertical order.
     - Highlights 'Material List', 'Shopping List', 'Cutting List', 'Cut List', and section titles as BOLD Headings.
     """
     doc = pymupdf.open(pdf_filepath)
@@ -40,13 +39,20 @@ def parse_pdf_directly(pdf_filepath):
         page_num = p_idx + 1
         page = doc[p_idx]
         
-        # Determine diagram image vertical bounds (y0, y1)
-        img_y0 = None
+        # Identify ALL diagram images on this page sorted top-to-bottom
         img_info_list = page.get_image_info(xrefs=True)
-        if img_info_list:
-            main_img = max(img_info_list, key=lambda img: (img["bbox"][2]-img["bbox"][0]) * (img["bbox"][3]-img["bbox"][1]))
-            if (main_img["bbox"][2]-main_img["bbox"][0]) > 100 and (main_img["bbox"][3]-main_img["bbox"][1]) > 100:
-                img_y0 = main_img["bbox"][1]
+        real_imgs = [im for im in img_info_list if im.get('xref') != 4 and im.get('width', 0) > 140 and im.get('height', 0) > 140]
+        real_imgs.sort(key=lambda x: x.get('bbox', [0,0,0,0])[1])
+        
+        # Build image source labels for this page
+        img_labels = []
+        if real_imgs:
+            for sub_idx in range(len(real_imgs)):
+                img_labels.append(f"page_{page_num}_img_{sub_idx + 1}")
+        else:
+            img_labels.append(f"page_{page_num}_img")
+            
+        img_y0 = real_imgs[0]["bbox"][1] if real_imgs else None
 
         blocks = page.get_text("blocks")
         lines_above = []
@@ -74,14 +80,12 @@ def parse_pdf_directly(pdf_filepath):
                 else:
                     lines_below.extend(block_lines)
 
-        img_label = f"page_{page_num}_img"
-        
         steps.append({
             "step_number": step_num,
             "page_number": page_num,
             "lines_above": lines_above,
             "lines_below": lines_below,
-            "image_sources": [img_label]
+            "image_sources": img_labels
         })
         step_num += 1
 
