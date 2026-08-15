@@ -311,8 +311,7 @@ def generate_premium_pdf(plan_json_str, page_to_images=None, docx_images_dict=No
             
             # Step Banner
             step_num = step.get('step_number', step_idx + 1)
-            step_title = step.get('title', f'Step {step_num}')
-            add_heading(f"STEP {step_num}: {step_title}", level=1)
+            add_heading(f"STEP {step_num}", level=1)
             
             embedded_any = False
             img_candidates = []
