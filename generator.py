@@ -330,18 +330,16 @@ def generate_premium_pdf(plan_json_str, page_to_images=None, docx_images_dict=No
                     
 
             
-            # Bullet materials list (if present)
-            step_mats = step.get("step_materials")
-            if step_mats and isinstance(step_mats, list):
-                for mat in step_mats:
-                    if mat:
-                        add_bullet(str(mat))
-                doc.add_paragraph() # Spacer
-                
-            # Instructions Paragraph Box
+            # Instructions Line-by-Line Page Render
             desc = step.get("exact_description")
             if desc:
-                doc.add_paragraph(str(desc))
+                for line in str(desc).split("\n"):
+                    line_clean = line.strip()
+                    if line_clean:
+                        if line_clean.startswith("•"):
+                            add_bullet(line_clean.lstrip("•").strip())
+                        else:
+                            doc.add_paragraph(line_clean)
 
     # ==========================================
     # 8. FINISHING INSTRUCTIONS
