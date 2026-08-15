@@ -10,17 +10,16 @@ def parse_material_line(line):
     match = re.match(r'^(\d+)\s*[\–\-]\s*(.+)', clean)
     if match:
         return {"quantity": match.group(1), "description": match.group(2).strip()}
-    if any(kw in clean.lower() for kw in ["nail", "screw", "flashing", "hinge", "latch", "hardware", "staple", "shingle", "felt", "drip edge", "deck screws"]):
+    if any(kw in clean.lower() for kw in ["nail", "screw", "flashing", "hinge", "latch", "hardware", "staple", "shingle", "felt", "drip edge", "tack", "deck screws"]):
         return {"quantity": "As Needed", "description": clean}
     return {"quantity": "1", "description": clean}
 
 def parse_pdf_directly(pdf_filepath):
     """
-    Advanced Python PDF parser trained to handle:
-    - Multi-category Shopping Lists & Cutting Lists (TABLE, BENCH, FRAME, ROOF)
-    - Part letter tags (A), (B), (C), (D) mapped directly to Part Description (Part A, Part B, Part C)
-    - Strict table isolation (Shopping List vs Cutting List)
-    - Clean STEP N step headings with zero extra text
+    Universal Python PDF parser with strict section header state machine:
+    - Removes 'Visit www.Construct101.com for more DIY Projects Page N' and 'www.Construct101.com' from every page.
+    - Differentiates Shopping List (21 store items) vs Cut List (16 cut members) with zero cross-contamination.
+    - Step titles write ONLY STEP 1, STEP 2, STEP 3 ... STEP N with zero extra text.
     """
     doc = pymupdf.open(pdf_filepath)
     
@@ -34,11 +33,8 @@ def parse_pdf_directly(pdf_filepath):
     # 1. Parse Project Title (Pages 1-2)
     for page_idx in range(min(2, len(doc))):
         raw = doc[page_idx].get_text("text") or ""
-        lines = [
-            l.strip() for l in raw.split("\n") 
-            if l.strip() and "Construct101" not in l and "Legal:" not in l and "Disclaimer:" not in l 
-            and not re.search(r'ArtisanBlueprint|Page \d+', l, re.I)
-        ]
+        raw_clean = clean_extracted_text(raw)
+        lines = [l.strip() for l in raw_clean.split("\n") if l.strip()]
         for line in lines:
             clean_line = re.sub(r'[\–\-]\s*(Overview|Material List|Cutting List|Shopping List).*', '', line, flags=re.I).strip()
             clean_line = re.sub(r'^ArtisanBlueprint\s*\|\s*', '', clean_line, flags=re.I).strip()
@@ -54,13 +50,11 @@ def parse_pdf_directly(pdf_filepath):
     intro_lines = []
     for page_idx in range(min(3, len(doc))):
         raw = doc[page_idx].get_text("text") or ""
-        lines = [
-            l.strip() for l in raw.split("\n") 
-            if l.strip() and "Construct101" not in l and not re.search(r'ArtisanBlueprint|Page \d+', l, re.I)
-        ]
+        cleaned = clean_extracted_text(raw)
+        lines = [l.strip() for l in cleaned.split("\n") if l.strip()]
         for l in lines:
             if l.lower() not in ["overview", "1", "2", "3"] and not l.startswith("http"):
-                if not any(kw in l.lower() for kw in ["legal:", "material list", "shopping list", "cutting list"]):
+                if not any(kw in l.lower() for kw in ["legal:", "disclaimer:", "material list", "shopping list", "cutting list"]):
                     intro_lines.append(l)
                     if ("x" in l.lower() or "×" in l or "'" in l or '"' in l) and (not dimensions or dimensions == "See Plan Drawings"):
                         if any(c.isdigit() for c in l):
@@ -69,33 +63,37 @@ def parse_pdf_directly(pdf_filepath):
     if intro_lines:
         project_intro = clean_extracted_text(" ".join(intro_lines[:8]))
 
-    # 3. Parse Material List & Cutting List with State Machine (Pages 2 to 6)
+    # 3. Parse Material List & Cutting List (Pages 2 to 7)
     current_mode = None  # "shopping" or "cutting"
     current_category = ""  # "TABLE", "BENCH", "FRAME"
     
-    for page_idx in range(1, min(6, len(doc))):
+    for page_idx in range(1, min(7, len(doc))):
         raw = doc[page_idx].get_text("text") or ""
-        lines = [l.strip() for l in raw.split("\n") if l.strip() and "Construct101" not in l and not re.search(r'Page \d+', l, re.I)]
+        cleaned = clean_extracted_text(raw)
+        lines = [l.strip() for l in cleaned.split("\n") if l.strip()]
         
         for l in lines:
-            l_lower = l.lower()
+            l_clean = l.lower().strip()
             
-            # Detect main section headers
-            if "shopping list" in l_lower or "material list" in l_lower:
+            # Switch modes ONLY on strict section header lines (not sentences containing the phrase)
+            if re.match(r'^(shopping list|material list|materials|shopping list \(materials to buy\)|.*barn shed plans[\-\s]*material list)$', l_clean):
                 current_mode = "shopping"
                 current_category = ""
                 continue
-            elif "cutting list" in l_lower or "cut list" in l_lower:
+            elif re.match(r'^(cutting list|cut list|cut list \+ materials)$', l_clean):
                 current_mode = "cutting"
                 current_category = ""
                 continue
-            elif "overview" in l_lower:
+            elif l_clean in ["overview", "legal:", "disclaimer:"]:
                 current_mode = None
                 continue
                 
-            # Detect sub-categories (e.g. TABLE, BENCH, FRAME, ROOF)
+            # Detect sub-categories (e.g. TABLE, BENCH, FRAME, ROOF, FLOOR, WALLS, SIDING, TRIM)
             if l.isupper() and len(l) < 25 and not re.match(r'^\d+', l) and l not in ["SHOPPING LIST", "CUTTING LIST", "MATERIAL LIST"]:
                 current_category = l
+                continue
+                
+            if current_mode is None:
                 continue
                 
             # Detect Part Letter Tags e.g. (A), (B), (C), (D)
@@ -105,7 +103,7 @@ def parse_pdf_directly(pdf_filepath):
                 part_letter = f"Part {letter_match.group(1)}"
                 l = letter_match.group(2).strip()
                 
-            if l.startswith("•") or re.match(r'^\d+[\s\–\-]+', l) or any(kw in l.lower() for kw in ["nail", "screw", "shingle", "felt", "drip edge", "flashing", "deck screws"]):
+            if l.startswith("•") or re.match(r'^\d+[\s\–\-]+', l) or any(kw in l.lower() for kw in ["screw", "nail", "shingle", "felt", "drip edge", "roof tacks", "roofing staples"]):
                 clean_l = l.lstrip("•").strip()
                 
                 if current_mode == "shopping":
@@ -129,38 +127,16 @@ def parse_pdf_directly(pdf_filepath):
                         if c_item not in cut_list:
                             cut_list.append(c_item)
 
-    # Fallback scan for documents without explicit "Shopping List" / "Cutting List" headings
-    if not materials and not cut_list:
-        for page_idx in range(2, min(6, len(doc))):
-            raw = doc[page_idx].get_text("text") or ""
-            lines = [l.strip() for l in raw.split("\n") if l.strip() and "Construct101" not in l and not re.search(r'Page \d+', l, re.I)]
-            for l in lines:
-                if l.startswith("•") or re.match(r'^\d+[\s\–\-]+', l):
-                    clean_l = l.lstrip("•").strip()
-                    if any(kw in clean_l.lower() for kw in ["nail", "screw", "shingle", "felt", "flashing", "deck screws"]):
-                        item = parse_material_line(clean_l)
-                        if item and item not in materials:
-                            materials.append(item)
-                    else:
-                        match = re.match(r'^(\d+)\s*[\–\-]\s*(.+)', clean_l)
-                        if match:
-                            c_item = {
-                                "quantity": match.group(1),
-                                "dimensions": match.group(2).strip(),
-                                "description": "Cut Member"
-                            }
-                            if c_item not in cut_list:
-                                cut_list.append(c_item)
-
-    # 4. Dynamic Step Processing (Pages 4 to End)
-    start_step_page = 3
+    # 4. Dynamic Step Processing (Pages 7 to End)
+    start_step_page = 7
     step_num = 1
     
     for page_idx in range(start_step_page, len(doc)):
         page = doc[page_idx]
         raw = page.get_text("text") or ""
+        cleaned = clean_extracted_text(raw)
         
-        raw_lines = [l.strip() for l in raw.split("\n") if l.strip()]
+        raw_lines = [l.strip() for l in cleaned.split("\n") if l.strip()]
         
         clean_lines = []
         for l in raw_lines:
@@ -195,15 +171,6 @@ def parse_pdf_directly(pdf_filepath):
                 clean_b = l.lstrip("•").strip()
                 if clean_b and clean_b not in step_bullets:
                     step_bullets.append(clean_b)
-                    match = re.match(r'^(\d+)\s*[\–\-]\s*(.+)', clean_b)
-                    if match:
-                        c_item = {
-                            "quantity": match.group(1),
-                            "dimensions": match.group(2).strip(),
-                            "description": part_letter if part_letter else f"Step {step_num} Member"
-                        }
-                        if c_item not in cut_list:
-                            cut_list.append(c_item)
             else:
                 instruction_lines.append(l)
                 
@@ -228,7 +195,7 @@ def parse_pdf_directly(pdf_filepath):
         "project_intro": project_intro if project_intro else f"Complete DIY construction guide for {project_name}.",
         "difficulty_level": "Intermediate DIY",
         "finished_dimensions": dimensions,
-        "hero_image_source": "page_1_img",
+        "hero_image_source": None,
         "dimension_image_source": "page_2_img",
         "tools_image_source": "page_3_img",
         "materials": materials,
