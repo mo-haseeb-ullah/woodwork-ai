@@ -16,9 +16,10 @@ def parse_material_line(line):
 
 def parse_pdf_directly(pdf_filepath):
     """
-    Universal Python PDF parser with strict section header state machine:
+    Universal Python PDF parser with strict 1-to-1 page-to-page alignment:
+    - Page N text is strictly matched with Page N diagram image (page_{N}_img).
     - Removes 'Visit www.Construct101.com for more DIY Projects Page N' and 'www.Construct101.com' from every page.
-    - Differentiates Shopping List (21 store items) vs Cut List (16 cut members) with zero cross-contamination.
+    - Differentiates Shopping List (store purchase items) vs Cut List (cut members) with zero cross-contamination.
     - Step titles write ONLY STEP 1, STEP 2, STEP 3 ... STEP N with zero extra text.
     """
     doc = pymupdf.open(pdf_filepath)
@@ -63,20 +64,27 @@ def parse_pdf_directly(pdf_filepath):
     if intro_lines:
         project_intro = clean_extracted_text(" ".join(intro_lines[:8]))
 
-    # 3. Parse Material List & Cutting List (Pages 2 to 7)
+    # 3. Parse Material List & Cutting List (Pages 1 to 7)
     current_mode = None  # "shopping" or "cutting"
     current_category = ""  # "TABLE", "BENCH", "FRAME"
     
-    for page_idx in range(1, min(7, len(doc))):
+    for page_idx in range(len(doc)):
+        page_num = page_idx + 1
         raw = doc[page_idx].get_text("text") or ""
         cleaned = clean_extracted_text(raw)
         lines = [l.strip() for l in cleaned.split("\n") if l.strip()]
         
+        # Stop material/cutting list extraction when actual construction steps begin
+        page_text_lower = cleaned.lower()
+        is_step_page = any(kw in page_text_lower for kw in ["step 1", "step 2", "cut two", "cut nine", "cut four", "cut 2x4", "cut 2x6", "joist are spaced", "wall studs are spaced"])
+        if is_step_page and page_num >= 4:
+            current_mode = None
+            
         for l in lines:
             l_clean = l.lower().strip()
             
-            # Switch modes ONLY on strict section header lines (not sentences containing the phrase)
-            if re.match(r'^(shopping list|material list|materials|shopping list \(materials to buy\)|.*barn shed plans[\-\s]*material list)$', l_clean):
+            # Switch modes ONLY on strict section header lines
+            if re.match(r'^(shopping list|material list|materials|shopping list \(materials to buy\)|.*shed plans[\-\s]*material list)$', l_clean):
                 current_mode = "shopping"
                 current_category = ""
                 continue
@@ -127,38 +135,33 @@ def parse_pdf_directly(pdf_filepath):
                         if c_item not in cut_list:
                             cut_list.append(c_item)
 
-    # 4. Dynamic Step Processing (Pages 7 to End)
-    start_step_page = 7
+    # 4. Dynamic Page-by-Page Construction Step Processing (Strict 1-to-1 Page Alignment)
     step_num = 1
     
-    for page_idx in range(start_step_page, len(doc)):
+    for page_idx in range(len(doc)):
+        page_num = page_idx + 1
         page = doc[page_idx]
         raw = page.get_text("text") or ""
         cleaned = clean_extracted_text(raw)
         
-        raw_lines = [l.strip() for l in cleaned.split("\n") if l.strip()]
-        
-        clean_lines = []
-        for l in raw_lines:
-            if "Construct101" in l or "Legal:" in l or "Disclaimer:" in l:
-                continue
-            if re.search(r'ArtisanBlueprint.*Page \d+|Page \d+$', l, re.I):
-                continue
-            if l in ["•", "″", "′", "-"] or l.isdigit() or l.startswith("Visit www"):
-                continue
-            clean_lines.append(l)
-            
-        if not clean_lines:
+        lines = [l.strip() for l in cleaned.split("\n") if l.strip()]
+        if not lines:
             continue
             
-        if any(l.lower().endswith("overview") or "material list" in l.lower() or "shopping list" in l.lower() or "cutting list" in l.lower() for l in clean_lines[:2]):
+        page_text_lower = cleaned.lower()
+        
+        # Skip cover, legal disclaimers, and pure shopping/cutting list overview pages
+        is_cover_or_legal = page_num <= 3 or any(kw in page_text_lower for kw in ["legal:", "disclaimer:", "all rights reserved", "isbn-"])
+        is_pure_list_page = any(re.match(r'^(shopping list|material list|cutting list|cut list)$', l.lower()) for l in lines[:3]) and not any(kw in page_text_lower for kw in ["cut two", "cut nine", "cut four", "assemble", "install", "frame"])
+        
+        if is_cover_or_legal or is_pure_list_page:
             continue
 
-        step_bullets = []
         instruction_lines = []
+        bullet_lines = []
         
-        for l in clean_lines:
-            if l.startswith("STEP "):
+        for l in lines:
+            if l.startswith("STEP ") or re.match(r'^Page \d+$', l, re.I):
                 continue
                 
             part_letter = None
@@ -169,26 +172,29 @@ def parse_pdf_directly(pdf_filepath):
                 
             if l.startswith("•") or (re.match(r'^\d+[\s\–\-]+', l) and ("cut" in l.lower() or "size" in l.lower() or "sheet" in l.lower() or "plywood" in l.lower() or "treated" in l.lower() or re.search(r'\d+[\′\″\']', l))):
                 clean_b = l.lstrip("•").strip()
-                if clean_b and clean_b not in step_bullets:
-                    step_bullets.append(clean_b)
+                if clean_b and clean_b not in bullet_lines:
+                    bullet_lines.append(clean_b)
             else:
                 instruction_lines.append(l)
                 
-        step_desc = clean_extracted_text(" ".join(instruction_lines))
-        if not step_desc:
-            step_desc = clean_extracted_text(" ".join(clean_lines))
+        exact_page_text = clean_extracted_text(" ".join(instruction_lines))
+        if not exact_page_text:
+            exact_page_text = clean_extracted_text(" ".join(lines))
             
-        page_num = page_idx + 1
-        img_label = f"page_{page_num}_img"
-        
-        steps.append({
-            "step_number": step_num,
-            "title": f"STEP {step_num}",
-            "step_materials": step_bullets,
-            "exact_description": step_desc,
-            "image_sources": [img_label]
-        })
-        step_num += 1
+        if exact_page_text and len(exact_page_text) > 10:
+            # STRICT 1-TO-1 PAGE MATCHING:
+            # Page N text strictly maps to Page N diagram image (page_{N}_img)
+            img_label = f"page_{page_num}_img"
+            
+            steps.append({
+                "step_number": step_num,
+                "title": f"STEP {step_num}",
+                "page_number": page_num,
+                "step_materials": bullet_lines,
+                "exact_description": exact_page_text,
+                "image_sources": [img_label]
+            })
+            step_num += 1
 
     return {
         "project_name": project_name,
