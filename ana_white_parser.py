@@ -186,11 +186,19 @@ def parse_ana_white_url(url, t_id):
 
     # Return structured JSON directly
     
-    # 6. Description / Overview
-    description_str = "Generated directly from Ana White's website."
+    # 6. Description / Overview / Intro
+    project_intro = ""
+    summary_field = main_content.find(class_='field--name-field-summary')
     body_field = main_content.find(class_='field--name-body')
-    if body_field:
-        description_str = clean_text(body_field.get_text(separator='\n', strip=True))
+    
+    if summary_field:
+        project_intro = clean_text(summary_field.get_text(separator='\n', strip=True))
+    elif body_field:
+        project_intro = clean_text(body_field.get_text(separator='\n', strip=True))
+        
+    # Exclude "Add Brag Post" if it slipped in
+    if project_intro.lower() == "add brag post":
+        project_intro = ""
 
     # 7. Tools
     tools_list = []
@@ -201,10 +209,28 @@ def parse_ana_white_url(url, t_id):
             alt = img.get('alt')
             if alt:
                 tools_list.append(alt)
+                
+    # 8. Finishing / Preparation Instructions
+    finishing_instructions = []
+    
+    prep_field = main_content.find(class_=lambda c: c and 'preparation' in c.lower())
+    if prep_field:
+        lines = prep_field.get_text(separator='\n').split('\n')
+        finishing_instructions.extend([line.strip() for line in lines if line.strip() and "instructions" not in line.lower()])
+        
+    finish_field = main_content.find(class_=lambda c: c and 'finishing' in c.lower())
+    if finish_field:
+        # Avoid duplicate text if finishing and preparation are in the same container
+        lines = finish_field.get_text(separator='\n').split('\n')
+        for line in lines:
+            cl = line.strip()
+            if cl and "instructions" not in cl.lower() and cl not in finishing_instructions:
+                finishing_instructions.append(cl)
 
     return {
         "project_title": project_title,
-        "description": description_str,
+        "project_intro": project_intro,
+        "description": project_intro,
         "finished_dimensions": dimensions_str,
         "hero_image_source": hero_image_source,
         "dimension_image_source": dimension_image_source,
@@ -212,5 +238,6 @@ def parse_ana_white_url(url, t_id):
         "materials": materials,
         "cut_list": cut_list,
         "tools": tools_list,
-        "steps": steps
+        "steps": steps,
+        "finishing_instructions": finishing_instructions
     }
