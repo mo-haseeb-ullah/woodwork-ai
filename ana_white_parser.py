@@ -24,21 +24,27 @@ def clean_text(text):
 def ai_summarize_overview(text):
     if not text: return ""
     import os
-    try:
-        import google.generativeai as genai
-    except ImportError:
-        return text # Fallback if library isn't installed
-        
+    
     api_key = os.environ.get("GEMINI_API_KEY")
     if not api_key: return text
     
     try:
-        genai.configure(api_key=api_key)
-        # Use gemini-1.5-flash for quick, cheap text summarization
-        model = genai.GenerativeModel('gemini-1.5-flash')
+        # Use direct REST API call (no SDK needed) to avoid compatibility issues
+        api_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={api_key}"
         prompt = f"Summarize this woodworking project overview in 3 to 4 lines. Make it sound professional, engaging, and compact. Completely remove any mention of 'Ana White', 'free', 'plans', or 'brag post'. Return ONLY the summarized text without quotes or markdown formatting. Here is the text:\n\n{text}"
-        response = model.generate_content(prompt)
-        return response.text.strip()
+        payload = {
+            "contents": [{"parts": [{"text": prompt}]}]
+        }
+        resp = requests.post(api_url, json=payload, timeout=15)
+        if resp.status_code == 200:
+            data = resp.json()
+            candidates = data.get("candidates", [])
+            if candidates:
+                parts = candidates[0].get("content", {}).get("parts", [])
+                if parts:
+                    return parts[0].get("text", "").strip()
+        print(f"AI summarization API returned status {resp.status_code}")
+        return text
     except Exception as e:
         print(f"AI summarization failed: {e}")
         return text
