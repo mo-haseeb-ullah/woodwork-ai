@@ -1,0 +1,16 @@
+# Vercel deployment ignore file
+# Prevent large generated files from bloating the serverless function bundle
+
+*.zip
+*.docx
+raw_output_*.json
+*.exe
+
+# Large directories that are not needed at runtime
+extracted_images/
+docx_images/
+uploads/
+test_*/
+scratch/
+venv/
+.venv/
