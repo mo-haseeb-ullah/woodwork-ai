@@ -175,15 +175,36 @@ def parse_ana_white_url(url, t_id):
         })
 
     # Return structured JSON directly
+    
+    # 6. Description / Overview
+    description_str = "Generated directly from Ana White's website."
+    body_field = main_content.find(class_='field--name-body')
+    if body_field:
+        description_str = clean_text(body_field.get_text(separator='\n', strip=True))
+
+    # 7. Tools
+    tools_list = []
+    tools_image_source = None
+    tools_field = main_content.find(class_='field--name-field-tools')
+    if tools_field:
+        imgs = tools_field.find_all('img')
+        for img in imgs:
+            alt = img.get('alt')
+            if alt:
+                tools_list.append(alt)
+            # Just grab the first tool image as the tools_image_source for the DOCX
+            if not tools_image_source:
+                tools_image_source = download_image(img)
+
     return {
         "project_title": project_title,
-        "description": "Generated directly from Ana White's website.",
+        "description": description_str,
         "finished_dimensions": dimensions_str,
         "hero_image_source": hero_image_source,
         "dimension_image_source": dimension_image_source,
-        "tools_image_source": None,
+        "tools_image_source": tools_image_source,
         "materials": materials,
         "cut_list": cut_list,
-        "tools": [],
+        "tools": tools_list,
         "steps": steps
     }
