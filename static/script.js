@@ -61,6 +61,17 @@ document.addEventListener('DOMContentLoaded', () => {
                 throw new Error(errorMsg);
             }
 
+            // Extract filename from Content-Disposition header
+            let filename = "Premium_Plan.docx";
+            const disposition = response.headers.get('Content-Disposition');
+            if (disposition && disposition.indexOf('attachment') !== -1) {
+                const filenameRegex = /filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/;
+                const matches = filenameRegex.exec(disposition);
+                if (matches != null && matches[1]) { 
+                    filename = matches[1].replace(/['"]/g, '');
+                }
+            }
+
             // Get binary data
             const blob = await response.blob();
             const url = window.URL.createObjectURL(blob);
@@ -69,14 +80,19 @@ document.addEventListener('DOMContentLoaded', () => {
             statusText.textContent = "> Success! Premium Plan generated and downloaded.";
             
             downloadDocxBtn.href = url;
-            downloadDocxBtn.download = "Premium_Plan.docx";
+            downloadDocxBtn.download = filename;
             downloadDocxBtn.onclick = null;
             
             downloadContainer.classList.remove('hidden');
             downloadContainer.classList.add('flex');
             
-            // Auto trigger docx download
-            window.location.href = url;
+            // Auto trigger docx download properly with the correct filename
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
             
             // Reset UI
             submitBtn.disabled = false;
