@@ -180,7 +180,6 @@ def parse_ana_white_url(url, t_id):
 
     # 7. Tools
     tools_list = []
-    tools_image_source = None
     tools_field = main_content.find(class_='field--name-field-tools')
     if tools_field:
         imgs = tools_field.find_all('img')
@@ -188,9 +187,6 @@ def parse_ana_white_url(url, t_id):
             alt = img.get('alt')
             if alt:
                 tools_list.append(alt)
-            # Just grab the first tool image as the tools_image_source for the DOCX
-            if not tools_image_source:
-                tools_image_source = download_image(img)
 
     return {
         "project_title": project_title,
@@ -198,7 +194,7 @@ def parse_ana_white_url(url, t_id):
         "finished_dimensions": dimensions_str,
         "hero_image_source": hero_image_source,
         "dimension_image_source": dimension_image_source,
-        "tools_image_source": tools_image_source,
+        "tools_image_source": None,
         "materials": materials,
         "cut_list": cut_list,
         "tools": tools_list,
