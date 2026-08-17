@@ -117,7 +117,15 @@ def process():
     else:
         run_task(t_id=task_id, url=url)
         
-    return jsonify({'task_id': task_id})
+    task_result = tasks.get(task_id, {})
+    if task_result.get('status') == 'error':
+        return jsonify({'error': task_result.get('error', 'Unknown error during processing')}), 500
+        
+    output_filename = task_result.get('docx')
+    if not output_filename or not os.path.exists(output_filename):
+        return jsonify({'error': 'Failed to generate Premium Plan document.'}), 500
+        
+    return send_file(output_filename, as_attachment=True, download_name="Premium_Plan.docx")
 
 @app.route('/status/<task_id>', methods=['GET'])
 def get_status(task_id):

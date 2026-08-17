@@ -53,62 +53,35 @@ document.addEventListener('DOMContentLoaded', () => {
             });
 
             if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.error || response.statusText);
+                let errorMsg = response.statusText;
+                try {
+                    const errorData = await response.json();
+                    if (errorData.error) errorMsg = errorData.error;
+                } catch (e) {}
+                throw new Error(errorMsg);
             }
 
-            const data = await response.json();
-            const taskId = data.task_id;
-
-            // Start polling for status
-            const pollInterval = setInterval(async () => {
-                try {
-                    const statusRes = await fetch(`/status/${taskId}`);
-                    if (!statusRes.ok) throw new Error("Failed to check status");
-                    
-                    const statusData = await statusRes.json();
-                    
-                    if (statusData.status === 'completed') {
-                        clearInterval(pollInterval);
-                        
-                        statusText.className = "status-text text-emerald-600 font-bold mb-4";
-                        statusText.textContent = "> Success! Premium Plan generated with images embedded and available for download.";
-                        
-                        // Setup dual download buttons
-                        downloadDocxBtn.href = `/download/${taskId}`;
-                        downloadDocxBtn.onclick = null;
-                        
-                        downloadContainer.classList.remove('hidden');
-                        downloadContainer.classList.add('flex');
-                        
-                        // Auto trigger docx download
-                        window.location.href = `/download/${taskId}`;
-                        
-                        // Reset UI
-                        submitBtn.disabled = false;
-                        btnText.classList.remove('hidden');
-                        spinner.classList.add('hidden');
-                    } else if (statusData.status === 'error') {
-                        clearInterval(pollInterval);
-                        statusText.className = "status-text text-red-500 font-bold mb-4";
-                        statusText.textContent = `> Error: ${statusData.error}`;
-                        
-                        // Reset UI
-                        submitBtn.disabled = false;
-                        btnText.classList.remove('hidden');
-                        spinner.classList.add('hidden');
-                    }
-                } catch (pollError) {
-                    clearInterval(pollInterval);
-                    statusText.className = "status-text text-red-500 font-bold mb-4";
-                    statusText.textContent = `> Polling Error: ${pollError.message}`;
-                    
-                    // Reset UI
-                    submitBtn.disabled = false;
-                    btnText.classList.remove('hidden');
-                    spinner.classList.add('hidden');
-                }
-            }, 3000);
+            // Get binary data
+            const blob = await response.blob();
+            const url = window.URL.createObjectURL(blob);
+            
+            statusText.className = "status-text text-emerald-600 font-bold mb-4";
+            statusText.textContent = "> Success! Premium Plan generated and downloaded.";
+            
+            downloadDocxBtn.href = url;
+            downloadDocxBtn.download = "Premium_Plan.docx";
+            downloadDocxBtn.onclick = null;
+            
+            downloadContainer.classList.remove('hidden');
+            downloadContainer.classList.add('flex');
+            
+            // Auto trigger docx download
+            window.location.href = url;
+            
+            // Reset UI
+            submitBtn.disabled = false;
+            btnText.classList.remove('hidden');
+            spinner.classList.add('hidden');
 
         } catch (error) {
             statusText.className = "status-text text-red-500 font-bold mb-4";
