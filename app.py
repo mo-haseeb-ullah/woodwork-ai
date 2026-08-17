@@ -13,6 +13,7 @@ from ai_processor import process_with_ai
 from generator import generate_premium_pdf
 from scraper import scrape_images_from_url
 from pdf_extractor import extract_from_pdf, create_images_zip
+from ana_white_parser import parse_ana_white_url
 
 from dotenv import load_dotenv
 load_dotenv()
@@ -77,14 +78,9 @@ def process():
                 parsed_plan = parse_pdf_directly(pdf_filepath)
                 json_output = json.dumps(parsed_plan, indent=2)
             else:
-                # URL Scraping Mode
-                scraped_images, scraped_text = scrape_images_from_url(url)
-                if not scraped_text:
-                    tasks[t_id] = {'status': 'error', 'error': 'Could not extract text from the provided URL.'}
-                    return
-                
-                current_api_key = os.environ.get("GEMINI_API_KEY", API_KEY)
-                json_output = process_with_ai(scraped_text, current_api_key, scraped_images)
+                # Direct Python scraping (No AI) for 100% accuracy and speed
+                parsed_plan = parse_ana_white_url(url, t_id)
+                json_output = json.dumps(parsed_plan, indent=2)
             
             with open(f"raw_output_{t_id}.json", "w", encoding='utf-8') as f:
                 f.write(json_output)
