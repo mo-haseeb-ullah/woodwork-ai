@@ -81,6 +81,18 @@ def process():
                 # Direct Python scraping (No AI) for 100% accuracy and speed
                 parsed_plan = parse_ana_white_url(url, t_id)
                 json_output = json.dumps(parsed_plan, indent=2)
+                
+            # Extract project title for the filename
+            try:
+                plan_dict = json.loads(json_output)
+                project_title = plan_dict.get("project_title", plan_dict.get("project_name", "Woodworking_Plan"))
+            except:
+                project_title = "Woodworking_Plan"
+                
+            # Clean title for filename (remove invalid characters)
+            import re
+            safe_title = re.sub(r'[\\/*?:"<>|]', "", project_title).strip().replace(" ", "_")
+            if not safe_title: safe_title = "Woodworking_Plan"
             
             with open(f"raw_output_{t_id}.json", "w", encoding='utf-8') as f:
                 f.write(json_output)
@@ -91,7 +103,8 @@ def process():
             
             task_result = {
                 'status': 'completed', 
-                'docx': output_filename
+                'docx': output_filename,
+                'download_name': f"{safe_title}.docx"
             }
                 
             tasks[t_id] = task_result
@@ -118,10 +131,11 @@ def process():
         return jsonify({'error': task_result.get('error', 'Unknown error during processing')}), 500
         
     output_filename = task_result.get('docx')
+    download_name = task_result.get('download_name', 'Premium_Plan.docx')
     if not output_filename or not os.path.exists(output_filename):
         return jsonify({'error': 'Failed to generate Premium Plan document.'}), 500
         
-    return send_file(output_filename, as_attachment=True, download_name="Premium_Plan.docx")
+    return send_file(output_filename, as_attachment=True, download_name=download_name)
 
 @app.route('/status/<task_id>', methods=['GET'])
 def get_status(task_id):

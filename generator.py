@@ -59,7 +59,7 @@ def generate_premium_pdf(plan_json_str, page_to_images=None, docx_images_dict=No
     else:
         plan_data = plan_json_str
         
-    project_name = plan_data.get("project_name", "Woodworking Plan")
+    project_name = plan_data.get("project_title", plan_data.get("project_name", "Woodworking Plan"))
 
     doc = Document()
     
