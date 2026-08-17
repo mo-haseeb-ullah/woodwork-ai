@@ -111,11 +111,11 @@ def process():
             traceback.print_exc()
             tasks[t_id] = {'status': 'error', 'error': str(e)}
 
-    # Launch background thread with matching keyword arguments
+    # Run task synchronously to prevent Vercel Serverless early-exit murders
     if mode == 'pdf' and pdf_filepath:
-        threading.Thread(target=run_task, kwargs={'t_id': task_id, 'pdf_filepath': pdf_filepath}).start()
+        run_task(t_id=task_id, pdf_filepath=pdf_filepath)
     else:
-        threading.Thread(target=run_task, kwargs={'t_id': task_id, 'url': url}).start()
+        run_task(t_id=task_id, url=url)
         
     return jsonify({'task_id': task_id})
 
