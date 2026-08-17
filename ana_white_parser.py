@@ -6,22 +6,16 @@ from PIL import Image
 from io import BytesIO
 
 def clean_text(text):
-    if not text:
-        return ""
-    # Strip "Free" and "Ana White" completely from titles
-    t = text.strip()
-    # Case insensitive replacements
-    replacements = ["free", "ana white", "woodworking plans", "plans"]
-    t_lower = t.lower()
-    for r in replacements:
-        if r in t_lower:
-            start_idx = t_lower.find(r)
-            t = t[:start_idx] + t[start_idx+len(r):]
-            t_lower = t.lower()
-    
-    # Cleanup extra spaces or weird hyphens left behind
-    t = t.replace(" - ", " ").strip("- ").strip("| ").strip()
-    return t
+    if not text: return ""
+    import re
+    # Remove Ana White branding variations
+    text = re.sub(r'(?i)free plans? by ANA-WHITE\.com', '', text)
+    text = re.sub(r'(?i)free plans? by ANA WHITE', '', text)
+    text = re.sub(r'(?i)by ANA-WHITE\.com', '', text)
+    text = re.sub(r'(?i)\|? ?ana white', '', text)
+    text = re.sub(r'(?i)free plans? by', '', text)
+    text = re.sub(r'(?i)ana-white\.com', '', text)
+    return text.strip(" -|\n\t")
 
 def parse_ana_white_url(url, t_id):
     """
@@ -187,18 +181,28 @@ def parse_ana_white_url(url, t_id):
     # Return structured JSON directly
     
     # 6. Description / Overview / Intro
-    project_intro = ""
+    intro_parts = []
     summary_field = main_content.find(class_='field--name-field-summary')
-    body_field = main_content.find(class_='field--name-body')
-    
     if summary_field:
-        project_intro = clean_text(summary_field.get_text(separator='\n', strip=True))
-    elif body_field:
-        project_intro = clean_text(body_field.get_text(separator='\n', strip=True))
+        intro_parts.append(summary_field.get_text(separator='\n', strip=True))
+        
+    author_notes = main_content.find(class_='field--name-field-authornotes')
+    if author_notes:
+        intro_parts.append(author_notes.get_text(separator='\n', strip=True))
+        
+    if not intro_parts:
+        body_field = main_content.find(class_='field--name-body')
+        if body_field:
+            intro_parts.append(body_field.get_text(separator='\n', strip=True))
+            
+    project_intro = clean_text("\n\n".join(intro_parts))
         
     # Exclude "Add Brag Post" if it slipped in
-    if project_intro.lower() == "add brag post":
+    if project_intro.lower().replace('\n', '').strip() == "add brag post":
         project_intro = ""
+    else:
+        # Sometimes 'Add Brag Post' is prepended to the real text, strip it
+        project_intro = project_intro.replace('Add Brag Post', '').strip()
 
     # 7. Tools
     tools_list = []
