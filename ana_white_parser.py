@@ -21,6 +21,28 @@ def clean_text(text):
     text = re.sub(r'\s+', ' ', text)
     return text.strip(" -|\n\t,.")
 
+def ai_summarize_overview(text):
+    if not text: return ""
+    import os
+    try:
+        import google.generativeai as genai
+    except ImportError:
+        return text # Fallback if library isn't installed
+        
+    api_key = os.environ.get("GEMINI_API_KEY")
+    if not api_key: return text
+    
+    try:
+        genai.configure(api_key=api_key)
+        # Use gemini-1.5-flash for quick, cheap text summarization
+        model = genai.GenerativeModel('gemini-1.5-flash')
+        prompt = f"Summarize this woodworking project overview in 3 to 4 lines. Make it sound professional, engaging, and compact. Completely remove any mention of 'Ana White', 'free', 'plans', or 'brag post'. Return ONLY the summarized text without quotes or markdown formatting. Here is the text:\n\n{text}"
+        response = model.generate_content(prompt)
+        return response.text.strip()
+    except Exception as e:
+        print(f"AI summarization failed: {e}")
+        return text
+
 def parse_ana_white_url(url, t_id):
     """
     Directly parses an Ana White URL without using Gemini AI.
@@ -154,7 +176,17 @@ def parse_ana_white_url(url, t_id):
 
     # 5. Steps
     steps = []
-    step_headers = main_content.find_all(lambda tag: tag.name in ['h2','h3','h4'] and 'step' in tag.get_text(strip=True).lower())
+    
+    def is_step_header(tag):
+        text = tag.get_text(strip=True).lower()
+        if 'step' not in text: return False
+        if tag.name in ['h2', 'h3', 'h4']: return True
+        if tag.name == 'p' and (tag.find('strong') or tag.find('b')):
+            # If it's a paragraph containing strong/b, and starts with Step
+            if text.startswith('step'): return True
+        return False
+
+    step_headers = main_content.find_all(is_step_header)
     
     for i, h in enumerate(step_headers):
         step_title = h.get_text(strip=True)
@@ -162,7 +194,7 @@ def parse_ana_white_url(url, t_id):
         step_images = []
         
         next_node = h.find_next_sibling()
-        while next_node and next_node.name not in ['h2','h3','h4']:
+        while next_node and not is_step_header(next_node):
             if next_node.name in ['p', 'div']:
                 text = next_node.get_text(separator='\n', strip=True)
                 if text: 
@@ -199,26 +231,29 @@ def parse_ana_white_url(url, t_id):
         if body_field:
             intro_parts.append(body_field.get_text(separator='\n', strip=True))
             
-    project_intro = clean_text("\n\n".join(intro_parts))
-        
+    raw_intro = "\n\n".join(intro_parts)
     # Exclude "Add Brag Post" if it slipped in
-    if project_intro.lower().replace('\n', '').strip() == "add brag post":
-        project_intro = ""
+    if raw_intro.lower().replace('\n', '').strip() == "add brag post":
+        raw_intro = ""
     else:
-        # Sometimes 'Add Brag Post' is prepended to the real text, strip it
-        project_intro = project_intro.replace('Add Brag Post', '').strip()
+        raw_intro = raw_intro.replace('Add Brag Post', '').strip()
         
-    # Make overview compact: max 3-4 lines or sentences
-    if project_intro:
-        # Split by sentence endings or newlines, take first 3-4 chunks
-        import re
-        sentences = re.split(r'(?<=[.!?])\s+', project_intro)
-        if len(sentences) > 4:
-            project_intro = " ".join(sentences[:4])
+    # Use AI to summarize the raw text if possible, then pass it through clean_text
+    if raw_intro:
+        summarized_intro = ai_summarize_overview(raw_intro)
         
-        # If it's still somehow extremely long, truncate it
-        if len(project_intro) > 350:
-            project_intro = project_intro[:347] + "..."
+        # If AI summarization failed or returned the full text (too long), manually truncate it
+        if len(summarized_intro) > 400:
+            import re
+            sentences = re.split(r'(?<=[.!?])\s+', summarized_intro)
+            if len(sentences) > 4:
+                summarized_intro = " ".join(sentences[:4])
+            if len(summarized_intro) > 350:
+                summarized_intro = summarized_intro[:347] + "..."
+                
+        project_intro = clean_text(summarized_intro)
+    else:
+        project_intro = ""
 
     # 7. Tools
     tools_list = []
