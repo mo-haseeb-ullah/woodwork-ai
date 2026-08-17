@@ -8,14 +8,18 @@ from io import BytesIO
 def clean_text(text):
     if not text: return ""
     import re
-    # Remove Ana White branding variations
+    # Aggressively remove Ana White branding and the word "free"
     text = re.sub(r'(?i)free plans? by ANA-WHITE\.com', '', text)
     text = re.sub(r'(?i)free plans? by ANA WHITE', '', text)
     text = re.sub(r'(?i)by ANA-WHITE\.com', '', text)
     text = re.sub(r'(?i)\|? ?ana white', '', text)
     text = re.sub(r'(?i)free plans? by', '', text)
     text = re.sub(r'(?i)ana-white\.com', '', text)
-    return text.strip(" -|\n\t")
+    text = re.sub(r'(?i)\bfree\b', '', text)
+    
+    # Clean up multiple spaces or lingering hyphens/punctuation from removals
+    text = re.sub(r'\s+', ' ', text)
+    return text.strip(" -|\n\t,.")
 
 def parse_ana_white_url(url, t_id):
     """
@@ -203,6 +207,18 @@ def parse_ana_white_url(url, t_id):
     else:
         # Sometimes 'Add Brag Post' is prepended to the real text, strip it
         project_intro = project_intro.replace('Add Brag Post', '').strip()
+        
+    # Make overview compact: max 3-4 lines or sentences
+    if project_intro:
+        # Split by sentence endings or newlines, take first 3-4 chunks
+        import re
+        sentences = re.split(r'(?<=[.!?])\s+', project_intro)
+        if len(sentences) > 4:
+            project_intro = " ".join(sentences[:4])
+        
+        # If it's still somehow extremely long, truncate it
+        if len(project_intro) > 350:
+            project_intro = project_intro[:347] + "..."
 
     # 7. Tools
     tools_list = []
