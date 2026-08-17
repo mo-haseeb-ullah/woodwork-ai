@@ -93,9 +93,7 @@ def process_with_ai(scraped_text, api_key=None, scraped_images=None):
       "missing_images": [{"location_id": "String", "description": "String"}]
     }
     """
-
-    models_to_try = ["gemini-1.5-flash"]
-    
+    models_to_try = ["gemini-2.5-flash", "gemini-flash-latest"]
     parts = [
         {"text": "--- START EXTRACTED TEXT ---\n" + scraped_text + "\n--- END EXTRACTED TEXT ---\n"}
     ]
