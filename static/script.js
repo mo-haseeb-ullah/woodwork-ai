@@ -1,11 +1,6 @@
 document.addEventListener('DOMContentLoaded', () => {
-    const modeUrlBtn = document.getElementById('modeUrlBtn');
-    const modePdfBtn = document.getElementById('modePdfBtn');
     const urlContainer = document.getElementById('urlContainer');
-    const pdfContainer = document.getElementById('pdfContainer');
     const urlInput = document.getElementById('urlInput');
-    const pdfInput = document.getElementById('pdfInput');
-    const pdfFileName = document.getElementById('pdfFileName');
     
     const form = document.getElementById('uploadForm');
     const submitBtn = document.getElementById('submitBtn');
@@ -18,35 +13,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const downloadDocxBtn = document.getElementById('downloadDocxBtn');
     const downloadZipBtn = document.getElementById('downloadZipBtn');
 
-    let currentMode = 'url'; // 'url' or 'pdf'
+    let currentMode = 'url'; // 'url'
 
-    // Mode Switcher handlers
-    modeUrlBtn.addEventListener('click', () => {
-        currentMode = 'url';
-        modeUrlBtn.className = "px-6 py-2.5 rounded-full font-bold text-sm transition-all duration-300 shadow-sm bg-brand-900 text-white flex items-center gap-2";
-        modePdfBtn.className = "px-6 py-2.5 rounded-full font-bold text-sm transition-all duration-300 bg-white text-brand-700 hover:bg-brand-100 border border-brand-200 flex items-center gap-2";
-        urlContainer.classList.remove('hidden');
-        pdfContainer.classList.add('hidden');
-        pdfContainer.classList.remove('flex');
-    });
-
-    modePdfBtn.addEventListener('click', () => {
-        currentMode = 'pdf';
-        modePdfBtn.className = "px-6 py-2.5 rounded-full font-bold text-sm transition-all duration-300 shadow-sm bg-brand-900 text-white flex items-center gap-2";
-        modeUrlBtn.className = "px-6 py-2.5 rounded-full font-bold text-sm transition-all duration-300 bg-white text-brand-700 hover:bg-brand-100 border border-brand-200 flex items-center gap-2";
-        pdfContainer.classList.remove('hidden');
-        pdfContainer.classList.add('flex');
-        urlContainer.classList.add('hidden');
-    });
-
-    // File input picker triggering
-    pdfContainer.addEventListener('click', () => pdfInput.click());
-
-    pdfInput.addEventListener('change', () => {
-        if (pdfInput.files && pdfInput.files[0]) {
-            pdfFileName.textContent = `Selected: ${pdfInput.files[0].name}`;
-        }
-    });
 
     // Form submission
     form.addEventListener('submit', async (e) => {
@@ -66,15 +34,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 return;
             }
             formData.append('url', projectUrl);
-        } else {
-            if (!pdfInput.files || !pdfInput.files[0]) {
-                statusMsg.classList.remove('hidden');
-                statusMsg.classList.add('opacity-100', 'translate-y-0');
-                statusText.className = "status-text text-red-500 font-bold mb-4";
-                statusText.textContent = "> Error: Please select a PDF file to upload!";
-                return;
-            }
-            formData.append('pdf_file', pdfInput.files[0]);
         }
 
         // UI Loading State
