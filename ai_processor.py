@@ -66,7 +66,7 @@ def process_with_ai(scraped_text, api_key=None, scraped_images=None):
     1. Extract the Project Name, Difficulty Level, and Finished Dimensions.
     2. Write a short `project_intro`.
     3. Extract the complete Shopping List (Materials), Cut list, and Tools list. If there is no explicit 'Tools' heading, carefully read the text to find which tools are mentioned. Do NOT guess or hallucinate tools that are not mentioned.
-    4. CRITICAL: Identify EVERY SINGLE STEP in the source document across all pages. Your final JSON array MUST contain EVERY construction step in order. Do NOT skip, omit, combine, or summarize any step. Copy the text for each step character-for-character into a single `exact_description` string.
+    4. CRITICAL: Identify EVERY SINGLE STEP in the source document across all pages. Your final JSON array MUST contain EVERY construction step in order. Do NOT skip, omit, combine, or summarize any step. Copy the text for each step character-for-character into a single `exact_description` string. PENALTY FOR SKIPPING STEPS IS SEVERE. YOU MUST EXTRACT THE COMPLETE STEP LIST.
     5. CRITICAL BRANDING REMOVAL: Remove all branding, promotional text, website names, copyright notices, author names (names of persons/creators), watermarks (e.g. Construct101), logo names, the word "Free" (or phrases like "Free Woodworking Plans"), and links from the extracted text. Give me only pure woodworking plans.
     6. MAP PAGE IMAGES EXACTLY:
        - Set `hero_image_source` to 'scraped_0' (Page 1 diagram).
@@ -94,7 +94,7 @@ def process_with_ai(scraped_text, api_key=None, scraped_images=None):
     }
     """
 
-    models_to_try = ["gemini-2.0-flash", "gemini-1.5-flash", "gemini-2.5-flash", "gemini-1.5-pro"]
+    models_to_try = ["gemini-1.5-flash"]
     
     parts = [
         {"text": "--- START EXTRACTED TEXT ---\n" + scraped_text + "\n--- END EXTRACTED TEXT ---\n"}
@@ -155,8 +155,9 @@ def process_with_ai(scraped_text, api_key=None, scraped_images=None):
     
     Double-check this JSON against the original EXTRACTED TEXT provided earlier.
     1. Did you miss any materials or tools mentioned in the text? If so, add them.
-    2. Did you skip or summarize any steps from the original text? If so, restore them in full. The user wants ALL steps exactly as they appear in the original text, copied word-for-word into `exact_description`.
-    3. Ensure the output is valid JSON strictly following the schema.
+    2. Did you skip or summarize any steps from the original text? If so, restore them in full. The user wants ALL steps exactly as they appear in the original text, copied word-for-word into `exact_description`. ANY OMITTED STEPS WILL RESULT IN A SYSTEM FAILURE.
+    3. Look carefully at the step numbers. If the steps jump from 1 to 4, you skipped steps 2 and 3. You MUST extract every step.
+    4. Ensure the output is valid JSON strictly following the schema.
     
     Return the final, perfectly corrected JSON object only.
     """

@@ -82,10 +82,6 @@ def process():
                 if not scraped_text:
                     tasks[t_id] = {'status': 'error', 'error': 'Could not extract text from the provided URL.'}
                     return
-                    
-                if scraped_images:
-                    zip_filename = f"Plan_Images_{t_id}.zip"
-                    create_images_zip(scraped_images, zip_filename)
                 
                 current_api_key = os.environ.get("GEMINI_API_KEY", API_KEY)
                 json_output = process_with_ai(scraped_text, current_api_key, scraped_images)
@@ -99,11 +95,8 @@ def process():
             
             task_result = {
                 'status': 'completed', 
-                'docx': output_filename,
-                'has_zip': bool(zip_filename and os.path.exists(zip_filename))
+                'docx': output_filename
             }
-            if zip_filename and os.path.exists(zip_filename):
-                task_result['zip'] = zip_filename
                 
             tasks[t_id] = task_result
             
@@ -140,13 +133,7 @@ def download(task_id):
         return "File not ready", 400
     return send_file(task['docx'], as_attachment=True, download_name="Premium_Plan.docx")
 
-@app.route('/download_zip/<task_id>', methods=['GET'])
-def download_zip(task_id):
-    task = tasks.get(task_id)
-    if not task or task['status'] != 'completed' or 'zip' not in task:
-        return "ZIP File not ready", 400
-    return send_file(task['zip'], as_attachment=True, download_name="Plan_Images.zip")
-        
+
 if __name__ == '__main__':
     # Ensure required folders exist
     os.makedirs('templates', exist_ok=True)

@@ -11,7 +11,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const statusText = statusMsg.querySelector('.status-text');
     const downloadContainer = document.getElementById('downloadContainer');
     const downloadDocxBtn = document.getElementById('downloadDocxBtn');
-    const downloadZipBtn = document.getElementById('downloadZipBtn');
 
     let currentMode = 'url'; // 'url'
 
@@ -78,13 +77,6 @@ document.addEventListener('DOMContentLoaded', () => {
                         // Setup dual download buttons
                         downloadDocxBtn.href = `/download/${taskId}`;
                         downloadDocxBtn.onclick = null;
-                        
-                        if (statusData.has_zip && statusData.zip) {
-                            downloadZipBtn.href = `/download_zip/${taskId}`;
-                            downloadZipBtn.classList.remove('hidden');
-                        } else {
-                            downloadZipBtn.classList.add('hidden');
-                        }
                         
                         downloadContainer.classList.remove('hidden');
                         downloadContainer.classList.add('flex');
