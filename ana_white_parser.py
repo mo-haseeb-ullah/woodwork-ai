@@ -116,31 +116,27 @@ def parse_ana_white_url(url, t_id):
     materials = []
     cut_list = []
     
-    def extract_list(search_str):
+    def extract_list_by_class(class_keywords):
         items = []
-        el = main_content.find(string=lambda t: t and search_str in t.lower())
-        if el and el.parent:
-            parent = el.parent
-            grandparent = parent.parent
-            # It could be in a sibling
-            ns = parent.find_next_sibling() or grandparent.find_next_sibling()
-            if ns:
-                if ns.name == 'ul':
-                    items = [li.get_text(strip=True) for li in ns.find_all('li')]
-                else:
-                    ul = ns.find('ul')
+        fields = main_content.find_all(class_=lambda c: c and any(k in c.lower() for k in class_keywords))
+        for field in fields:
+            # We want the container field, usually starts with 'field--name-field'
+            if 'field--name-field' in ' '.join(field.get('class', [])):
+                items_container = field.find(class_='field--item') or field.find(class_='field--items')
+                if items_container:
+                    ul = items_container.find('ul')
                     if ul:
                         items = [li.get_text(strip=True) for li in ul.find_all('li')]
                     else:
-                        # Split by br or newlines
-                        items = [line.strip() for line in ns.get_text(separator='\n').split('\n') if line.strip()]
+                        items = [line.strip() for line in items_container.get_text(separator='\n').split('\n') if line.strip()]
+                break # Found the first matching section
         return items
 
-    raw_shopping = extract_list("shopping list")
+    raw_shopping = extract_list_by_class(['shoppinglist', 'materials', 'shopping-list'])
     for item in raw_shopping:
         materials.append({"quantity": "", "description": item})
         
-    raw_cut = extract_list("cut list")
+    raw_cut = extract_list_by_class(['cutlist', 'cut-list', 'cut_list'])
     for item in raw_cut:
         cut_list.append({"quantity": "", "dimensions": "", "description": item})
 
