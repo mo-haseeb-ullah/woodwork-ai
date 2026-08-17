@@ -113,6 +113,7 @@ def parse_ana_white_url(url, t_id):
                 dimensions_str = ns.get_text(separator=' ', strip=True)
 
     # 4. Shopping List & Cut List
+    import re
     materials = []
     cut_list = []
     
@@ -132,13 +133,26 @@ def parse_ana_white_url(url, t_id):
                 break # Found the first matching section
         return items
 
+    def parse_item_qty_desc(item_text):
+        match_dash = re.match(r"^([\d\s/]+)\s*-\s*(.*)", item_text)
+        if match_dash:
+            return match_dash.group(1).strip(), match_dash.group(2).strip()
+        
+        match_space = re.match(r"^([\d]+)\s+([a-zA-Z].*)", item_text)
+        if match_space:
+            return match_space.group(1).strip(), match_space.group(2).strip()
+            
+        return "", item_text
+
     raw_shopping = extract_list_by_class(['shoppinglist', 'materials', 'shopping-list'])
     for item in raw_shopping:
-        materials.append({"quantity": "", "description": item})
+        qty, desc = parse_item_qty_desc(item)
+        materials.append({"quantity": qty, "description": desc})
         
     raw_cut = extract_list_by_class(['cutlist', 'cut-list', 'cut_list'])
     for item in raw_cut:
-        cut_list.append({"quantity": "", "dimensions": "", "description": item})
+        qty, desc = parse_item_qty_desc(item)
+        cut_list.append({"quantity": qty, "dimensions": "", "description": desc})
 
     # 5. Steps
     steps = []
