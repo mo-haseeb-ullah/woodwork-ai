@@ -260,30 +260,56 @@ def generate_premium_pdf(plan_json_str, page_to_images=None, docx_images_dict=No
         add_heading("Cut List")
         cut_list = plan_data.get("cut_list", [])
         
-        table = doc.add_table(rows=1, cols=3)
-        table.style = 'Table Grid'
+        # Check if ANY item has a non-empty dimensions field
+        has_dimensions = any(cut.get("dimensions") for cut in cut_list)
         
-        hdr_cells = table.rows[0].cells
-        hdr_cells[0].text = 'Qty'
-        hdr_cells[1].text = 'Dimensions'
-        hdr_cells[2].text = 'Part Description'
-        
-        # Style Header
-        for cell in hdr_cells:
-            set_cell_background(cell, "F2E6DF")
-            for paragraph in cell.paragraphs:
-                for run in paragraph.runs:
-                    run.bold = True
-                    run.font.color.rgb = BRAND_DARK
-        
-        for cut in cut_list:
-            row_cells = table.add_row().cells
-            q = cut.get("quantity")
-            dim = cut.get("dimensions")
-            d = cut.get("description")
-            row_cells[0].text = str(q) if q is not None else "-"
-            row_cells[1].text = str(dim) if dim is not None else ""
-            row_cells[2].text = str(d) if d is not None else ""
+        if has_dimensions:
+            table = doc.add_table(rows=1, cols=3)
+            table.style = 'Table Grid'
+            
+            hdr_cells = table.rows[0].cells
+            hdr_cells[0].text = 'Qty'
+            hdr_cells[1].text = 'Part'
+            hdr_cells[2].text = 'Cut Length'
+            
+            # Style Header
+            for cell in hdr_cells:
+                set_cell_background(cell, "F2E6DF")
+                for paragraph in cell.paragraphs:
+                    for run in paragraph.runs:
+                        run.bold = True
+                        run.font.color.rgb = BRAND_DARK
+            
+            for cut in cut_list:
+                row_cells = table.add_row().cells
+                q = cut.get("quantity")
+                dim = cut.get("dimensions")
+                d = cut.get("description")
+                row_cells[0].text = str(q) if q else "-"
+                row_cells[1].text = str(d) if d else ""
+                row_cells[2].text = str(dim) if dim else ""
+        else:
+            table = doc.add_table(rows=1, cols=2)
+            table.style = 'Table Grid'
+            
+            hdr_cells = table.rows[0].cells
+            hdr_cells[0].text = 'Qty'
+            hdr_cells[1].text = 'Cut Description'
+            
+            # Style Header
+            for cell in hdr_cells:
+                set_cell_background(cell, "F2E6DF")
+                for paragraph in cell.paragraphs:
+                    for run in paragraph.runs:
+                        run.bold = True
+                        run.font.color.rgb = BRAND_DARK
+            
+            for cut in cut_list:
+                row_cells = table.add_row().cells
+                q = cut.get("quantity")
+                d = cut.get("description")
+                row_cells[0].text = str(q) if q else "-"
+                row_cells[1].text = str(d) if d else ""
             
         doc.add_paragraph()
 

@@ -178,7 +178,15 @@ def parse_ana_white_url(url, t_id):
     raw_cut = extract_list_by_class(['cutlist', 'cut-list', 'cut_list'])
     for item in raw_cut:
         qty, desc = parse_item_qty_desc(item)
-        cut_list.append({"quantity": qty, "dimensions": "", "description": desc})
+        # Try to split board type from cut dimension using '@'
+        # e.g. "1x6 @ 5-1/2"" -> board="1x6", dim="5-1/2""
+        if '@' in desc:
+            parts = desc.split('@', 1)
+            board_type = parts[0].strip()
+            cut_dim = parts[1].strip()
+            cut_list.append({"quantity": qty, "dimensions": cut_dim, "description": board_type})
+        else:
+            cut_list.append({"quantity": qty, "dimensions": "", "description": desc})
 
     # 5. Steps
     steps = []
