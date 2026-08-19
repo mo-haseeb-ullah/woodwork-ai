@@ -368,6 +368,13 @@ def generate_premium_pdf(plan_json_str, page_to_images=None, docx_images_dict=No
         for step_idx, step in enumerate(plan_data.get("steps", [])):
             doc.add_page_break()
             
+            # 0. Render Step Title/Number as heading
+            step_title = step.get("title", "")
+            if step_title:
+                add_heading(step_title, level=2)
+            else:
+                add_heading(f"Step {step_idx + 1}", level=2)
+            
             # 1. Render Text Lines ABOVE the Image
             lines_above = step.get("lines_above", [])
             for line in lines_above:
