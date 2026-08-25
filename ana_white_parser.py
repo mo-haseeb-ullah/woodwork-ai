@@ -151,20 +151,24 @@ def parse_ana_white_url(url, t_id):
             if 'field--name-field' in ' '.join(field.get('class', [])):
                 items_container = field.find(class_='field--item') or field.find(class_='field--items')
                 if items_container:
-                    ul = items_container.find('ul')
-                    if ul:
-                        items = [li.get_text(strip=True) for li in ul.find_all('li')]
+                    # Get ALL li items from ALL ul elements (handles sub-sections like "Bay Supports", "Doors")
+                    all_lis = items_container.find_all('li')
+                    if all_lis:
+                        items = [li.get_text(strip=True) for li in all_lis]
                     else:
                         items = [line.strip() for line in items_container.get_text(separator='\n').split('\n') if line.strip()]
                 break # Found the first matching section
         return items
 
     def parse_item_qty_desc(item_text):
-        match_dash = re.match(r"^([\d\s/]+)\s*-\s*(.*)", item_text)
+        # Normalize all dash types (en-dash –, em-dash —) to regular hyphen
+        normalized = item_text.replace('\u2013', '-').replace('\u2014', '-').replace('\u2012', '-')
+        
+        match_dash = re.match(r"^([\d\s/]+)\s*-\s*(.*)", normalized)
         if match_dash:
             return match_dash.group(1).strip(), match_dash.group(2).strip()
         
-        match_space = re.match(r"^([\d]+)\s+([a-zA-Z].*)", item_text)
+        match_space = re.match(r"^([\d]+)\s+([a-zA-Z].*)", normalized)
         if match_space:
             return match_space.group(1).strip(), match_space.group(2).strip()
             
@@ -176,8 +180,27 @@ def parse_ana_white_url(url, t_id):
         materials.append({"quantity": qty, "description": desc})
         
     raw_cut = extract_list_by_class(['cutlist', 'cut-list', 'cut_list'])
+    
+    # If the class-based extraction missed sub-sections, try a deeper extraction
+    if not raw_cut:
+        # Fallback: find the cutlist container and get ALL text
+        cut_fields = main_content.find_all(class_=lambda c: c and any(k in c.lower() for k in ['cutlist', 'cut-list', 'cut_list']))
+        for field in cut_fields:
+            if 'field--name-field' in ' '.join(field.get('class', [])):
+                items_container = field.find(class_='field--item') or field.find(class_='field--items')
+                if items_container:
+                    # Get ALL list items from ALL ul elements (not just the first one)
+                    all_lis = items_container.find_all('li')
+                    if all_lis:
+                        raw_cut = [li.get_text(strip=True) for li in all_lis]
+                    else:
+                        raw_cut = [line.strip() for line in items_container.get_text(separator='\n').split('\n') if line.strip()]
+                break
+    
     for item in raw_cut:
-        qty, desc = parse_item_qty_desc(item)
+        # Normalize dashes in the item text for cut list too
+        normalized_item = item.replace('\u2013', '-').replace('\u2014', '-').replace('\u2012', '-')
+        qty, desc = parse_item_qty_desc(normalized_item)
         # Try to split board type from cut dimension using '@'
         # e.g. "1x6 @ 5-1/2"" -> board="1x6", dim="5-1/2""
         if '@' in desc:
