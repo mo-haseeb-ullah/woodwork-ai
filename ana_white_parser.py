@@ -388,14 +388,7 @@ def parse_ana_white_url(url, t_id):
         raw_intro = raw_intro.replace('Add Brag Post', '').strip()
         
     if raw_intro:
-        summarized_intro = ai_summarize_overview(raw_intro)
-        if len(summarized_intro) > 400:
-            sentences = re.split(r'(?<=[.!?])\s+', summarized_intro)
-            if len(sentences) > 4:
-                summarized_intro = " ".join(sentences[:4])
-            if len(summarized_intro) > 350:
-                summarized_intro = summarized_intro[:347] + "..."
-        project_intro = clean_text(summarized_intro)
+        project_intro = clean_text(raw_intro)
     else:
         project_intro = ""
 
