@@ -223,93 +223,48 @@ def generate_premium_pdf(plan_json_str, page_to_images=None, docx_images_dict=No
         doc.add_paragraph()
     
     # ==========================================
-    # 4. SHOPPING LIST (MATERIALS) - TABLE
+    # 4. SHOPPING LIST (MATERIALS) - BULLETS
     # ==========================================
     if plan_data.get("materials"):
         add_heading("Shopping List")
         materials = plan_data.get("materials", [])
         
-        table = doc.add_table(rows=1, cols=2)
-        table.style = 'Table Grid'
-        
-        hdr_cells = table.rows[0].cells
-        hdr_cells[0].text = 'Quantity'
-        hdr_cells[1].text = 'Material Description'
-        
-        # Style Header
-        for cell in hdr_cells:
-            set_cell_background(cell, "F2E6DF") # Very light copper
-            for paragraph in cell.paragraphs:
-                for run in paragraph.runs:
-                    run.bold = True
-                    run.font.color.rgb = BRAND_DARK
-        
         for material in materials:
-            row_cells = table.add_row().cells
-            q = material.get("quantity")
-            d = material.get("description")
-            row_cells[0].text = str(q) if q is not None else "-"
-            row_cells[1].text = str(d) if d is not None else ""
+            q = material.get("quantity", "")
+            d = material.get("description", "")
+            
+            # Reconstruct the string just like the website
+            if q:
+                line = f"{q} - {d}"
+            else:
+                line = str(d)
+                
+            p = doc.add_paragraph(line, style='List Bullet')
             
         doc.add_paragraph()
 
     # ==========================================
-    # 5. CUT LIST - TABLE
+    # 5. CUT LIST - BULLETS
     # ==========================================
     if plan_data.get("cut_list"):
         add_heading("Cut List")
         cut_list = plan_data.get("cut_list", [])
         
-        # Check if ANY item has a non-empty dimensions field
-        has_dimensions = any(cut.get("dimensions") for cut in cut_list)
-        
-        if has_dimensions:
-            table = doc.add_table(rows=1, cols=3)
-            table.style = 'Table Grid'
+        for cut in cut_list:
+            q = cut.get("quantity", "")
+            d = cut.get("description", "")
+            dim = cut.get("dimensions", "")
             
-            hdr_cells = table.rows[0].cells
-            hdr_cells[0].text = 'Qty'
-            hdr_cells[1].text = 'Part'
-            hdr_cells[2].text = 'Cut Length'
-            
-            # Style Header
-            for cell in hdr_cells:
-                set_cell_background(cell, "F2E6DF")
-                for paragraph in cell.paragraphs:
-                    for run in paragraph.runs:
-                        run.bold = True
-                        run.font.color.rgb = BRAND_DARK
-            
-            for cut in cut_list:
-                row_cells = table.add_row().cells
-                q = cut.get("quantity")
-                dim = cut.get("dimensions")
-                d = cut.get("description")
-                row_cells[0].text = str(q) if q else "-"
-                row_cells[1].text = str(d) if d else ""
-                row_cells[2].text = str(dim) if dim else ""
-        else:
-            table = doc.add_table(rows=1, cols=2)
-            table.style = 'Table Grid'
-            
-            hdr_cells = table.rows[0].cells
-            hdr_cells[0].text = 'Qty'
-            hdr_cells[1].text = 'Cut Description'
-            
-            # Style Header
-            for cell in hdr_cells:
-                set_cell_background(cell, "F2E6DF")
-                for paragraph in cell.paragraphs:
-                    for run in paragraph.runs:
-                        run.bold = True
-                        run.font.color.rgb = BRAND_DARK
-            
-            for cut in cut_list:
-                row_cells = table.add_row().cells
-                q = cut.get("quantity")
-                d = cut.get("description")
-                row_cells[0].text = str(q) if q else "-"
-                row_cells[1].text = str(d) if d else ""
+            # Reconstruct the string just like the website
+            line = ""
+            if q:
+                line += f"{q} - "
+            if d:
+                line += str(d)
+            if dim:
+                line += f" @ {dim}"
+                
+            doc.add_paragraph(line.strip(), style='List Bullet')
             
         doc.add_paragraph()
 

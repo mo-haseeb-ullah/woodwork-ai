@@ -438,9 +438,22 @@ def parse_ana_white_url(url, t_id):
             if 'finish' in h2.get_text(strip=True).lower():
                 ns = h2.find_next_sibling()
                 while ns and ns.name != 'h2':
-                    text = ns.get_text(strip=True)
-                    if text and 'instructions' not in text.lower():
-                        finishing_instructions.append(text)
+                    # Check if this node has <details> tags (the drop-downs)
+                    details = ns.find_all('details') if hasattr(ns, 'find_all') else []
+                    if details:
+                        for det in details:
+                            # Try to find the summary tag or assume the first text is the title
+                            summary = det.find('summary')
+                            title = summary.get_text(separator=' ', strip=True).replace('⌄', '').strip() if summary else "Finish Option"
+                            # Get the rest of the text inside the details tag
+                            if summary:
+                                summary.extract() # Remove summary so we can get just the content
+                            content = det.get_text(separator=' ', strip=True).replace('⌄', '').strip()
+                            finishing_instructions.append(f"{title.upper()}: {content}")
+                    else:
+                        text = ns.get_text(separator=' ', strip=True)
+                        if text and 'instructions' not in text.lower():
+                            finishing_instructions.append(text)
                     ns = ns.find_next_sibling()
                 break
     else:
