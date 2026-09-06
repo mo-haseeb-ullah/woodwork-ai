@@ -272,6 +272,7 @@ def parse_ana_white_url(url, t_id):
         step_sections = main_content.find_all(class_='public-step')
         for i, section in enumerate(step_sections):
             step_title = f"Step {i + 1}"
+            step_subtitle = ""
             step_desc = []
             step_images = []
             
@@ -284,7 +285,9 @@ def parse_ana_white_url(url, t_id):
                     step_title = h3_text
                 else:
                     step_title = f"Step {i + 1}"
-                    step_desc.append(h3_text)
+                    # Use a regex to strip "Step X " from the h3 text if it's there
+                    clean_h3 = re.sub(r'^Step\s*\d+\s*', '', h3_text).strip()
+                    step_subtitle = clean_h3
             
             # Get description from public-step-copy
             copy_div = section.find(class_='public-step-copy')
@@ -311,6 +314,7 @@ def parse_ana_white_url(url, t_id):
             steps.append({
                 "step_number": i + 1,
                 "title": step_title,
+                "subtitle": step_subtitle,
                 "exact_description": "\n".join(step_desc),
                 "image_sources": step_images
             })
@@ -348,6 +352,7 @@ def parse_ana_white_url(url, t_id):
             steps.append({
                 "step_number": i + 1,
                 "title": step_title,
+                "subtitle": "",
                 "exact_description": "\n".join(step_desc),
                 "image_sources": step_images
             })

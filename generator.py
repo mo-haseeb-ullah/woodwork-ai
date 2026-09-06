@@ -374,6 +374,16 @@ def generate_premium_pdf(plan_json_str, page_to_images=None, docx_images_dict=No
                 add_heading(step_title, level=2)
             else:
                 add_heading(f"Step {step_idx + 1}", level=2)
+                
+            # Render Subtitle as bold text
+            step_subtitle = step.get("subtitle", "")
+            if step_subtitle:
+                p = doc.add_paragraph()
+                run = p.add_run(step_subtitle)
+                run.bold = True
+                run.font.size = Pt(14.0)
+                run.font.color.rgb = BRAND_DARK
+                p.paragraph_format.space_after = Pt(10)
             
             # 1. Render Text Lines ABOVE the Image
             lines_above = step.get("lines_above", [])
